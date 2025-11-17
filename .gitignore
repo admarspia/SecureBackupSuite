@@ -1,0 +1,14 @@
+# Java build files
+/bin/
+/out/
+/*.class
+
+# IDE files
+/.idea/
+/*.iml
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
