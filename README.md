@@ -102,7 +102,7 @@ backup-system/
 
 ### Steps
 ```
-git clone https://github.com/admarspia/backup-system.git
+git clone https://github.com/admarspia/SecureBackupSuite
 cd backup-system
 mvn clean install
 ```
