@@ -65,33 +65,75 @@ This project is implemented in **Java**, following OOP principles and clean pack
 ## 4. Project Structure
 
 ```
-backup-system/
-│
-├── src/
-│   ├── main/
-│   │   ├── App.java
-│   │   └── config/
-│   │       ├── DbConfig.java
-│   │       ├── EncryptionConfig.java
-│   │       └── ScheduleConfig.java
-│   │
-│   ├── packages/
-│   │   ├── user/
-│   │   ├── backupConfiguration/
-│   │   ├── backup/
-│   │   ├── restore/
-│   │   ├── storage/
-│   │   ├── monitoring/
-│   │   └── notification/
-│   │
-│   └── utils/
-│       ├── EncryptionUtils.java
-│       ├── FileUtils.java
-│       └── Logger.java
-│
-├── tests/
+|-pom.xml
+|-.gitignore
+|-backup_system/
+     |-src/
+         |-test/
+             |-java/
+                 |-java/
+                 |-notification/
+                 |-user/
+                     |-UserServiceTest.java
+                 |-monitoring/
+                 |-backupConfiguration/
+                 |-storage/
+                 |-backup/
+                 |-restore/
+         |-main/
+             |-java/
+                 |-packages/
+                     |-notification/
+                         |-NotificationService.java
+                         |-NotificationController.java
+                         |-Notification.java
+                     |-user/
+                         |-UserUI.java
+                         |-UserController.java
+                         |-UserService.java
+                         |-UserModel.java
+                     |-monitoring/
+                         |-MonitoringService.java
+                         |-MonitoringController.java
+                         |-MonitoringLog.java
+                     |-backupConfiguration/
+                         |-BackupConfig.java
+                         |-BackupConfigController.java
+                         |-BackupConfigService.java
+                     |-storage/
+                         |-StorageController.java
+                         |-StorageService.java
+                         |-StorageLocation.java
+                     |-backup/
+                         |-BackupController.java
+                         |-BackupService.java
+                         |-Backup.java
+                     |-restore/
+                         |-RestoreService.java
+                         |-RestoreController.java
+                         |-RestoreOperation.java
+                 |-config/
+                     |-DbConfig.java
+                     |-Encryption.java
+                     |-Schedule.java
+                 |-utils/
+                     |-EncryptionUtils.java
+                     |-Logger.java
+                     |-FileUtils.java
+                     |-SessionManager.java
+                     |-Navigator.java
+                 |-exception/
+                     |-userservice/
+                         |-UsernameExistsException.java
+                         |-InvalidUsernameException.java
+                         |-InvalidPasswordException.java
+                         |-EmailExistsException.java
+                         |-InvalidEmailFormatException.java
+                         |-UserNotFoundException.java
+                         |-InvalidCredentialsException.java
+             |-App.java
 ├── README.md
-└── .gitignore
+
 ```
 
 ## 5. Installation
