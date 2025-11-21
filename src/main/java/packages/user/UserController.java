@@ -1,6 +1,8 @@
 package user;
 
 import exception.userservice.*;
+import utils.Logger;
+import java.sql.SQLException;
 
 
 public class UserController {
@@ -20,13 +22,13 @@ public class UserController {
             if (!matched) throw new InvalidCredentialsException();
 
         } catch ( InvalidCredentialsException ex) {
-            Logger.log("Error", "userservice", ex);
+            Logger.log("Error", "userservice", ex.toString());
             throw ex;
         }
 
     }
 
-    public static void validateUsername( String username) throws InvalidUsernameException, UsernameExistsException {
+    public static void validateUsername( String username) throws InvalidUsernameException, SQLException, UsernameExistsException {
         try {
             if (username == null || username.length() < 3 || username.length() > 30) 
                 throw new InvalidUsernameException();
@@ -35,16 +37,16 @@ public class UserController {
                 throw new UsernameExistsException();
 
         } catch (InvalidUsernameException  ex){
-                Logger.log("Error", "userservice", ex);
+                Logger.log("Error", "userservice", ex.toString());
                 throw ex;
         } catch (UsernameExistsException ex){
-            Logger.log("Error", "userservice", ex);
+            Logger.log("Error", "userservice", ex.toString());
             throw ex;
         }
 
     }
 
-    public static void validateEmail( String email ) throws InvalidEmailFormatException, EmailExistsException {
+    public static void validateEmail( String email ) throws InvalidEmailFormatException, SQLException, EmailExistsException {
         try {
             String emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$";
 
@@ -56,10 +58,10 @@ public class UserController {
 
 
         }catch (InvalidEmailFormatException ex) {
-            Logger.log("Error", "userservice", ex);
+            Logger.log("Error", "userservice", ex.toString());
             throw ex;
         }catch (EmailExistsException ex){
-            Logger.log("Error", "userservice", ex);
+            Logger.log("Error", "userservice", ex.toString());
             throw ex;
         }
 
@@ -71,7 +73,7 @@ public class UserController {
                 throw new InvalidPasswordException();
 
         } catch (InvalidPasswordException ex){
-                Logger.log("Error", "userservice", ex);
+                Logger.log("Error", "userservice", ex.toString());
                 throw ex;
 
         }

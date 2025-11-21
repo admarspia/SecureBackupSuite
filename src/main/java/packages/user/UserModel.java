@@ -1,6 +1,7 @@
 package user;
 
 import exception.userservice.*;
+import utils.EncryptionUtils;
 
 public class UserModel {
     private String username;

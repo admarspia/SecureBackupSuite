@@ -2,17 +2,14 @@ package user;
 
 import exception.userservice.*;
 import java.sql.*;
-import java.io.Console;
-import main.config.DbConfig;
-import utils.Logger;
-import utils.Navigator;
-import utils.SessionManager;
+import config.DbConfig;
+import utils.*;
+import java.io.IOException;
 
 
 public class UserService {
     private UserModel user;
     private Connection conn;
-    private Logger logger;
     
     private static final String CREATE = "CREATE TABLE IF NOT EXISTS users( username TEXT PRIMARY KEY, email TEXT, passwordHash TEXT);";
     private static final String INSERT = "INSERT INTO users(username, email, passwordHash) VALUES (? , ?, ?);";
@@ -31,7 +28,6 @@ public class UserService {
         user = new UserModel();
         conn = DbConfig.getConnection("jdbc:sqlite:backup_system.db");
         Statement stmt = conn.createStatement();
-        logger = new Logger();
 
 
 
@@ -54,10 +50,34 @@ public class UserService {
         pstmt.executeUpdate();
         pstmt.close();
 
-        logger.log("success", "userservice", "User created successfully.");
+        Logger.log("success", "userservice", "User created successfully.");
+    }
+    // added for automated testing
+
+    public void createNewUser(String username, String email, String password) throws SQLException, InvalidUsernameException, InvalidEmailFormatException, InvalidPasswordException, UsernameExistsException, EmailExistsException {
+
+        UserController.validateUsername(username);
+        UserController.validateEmail(email);
+        UserController.validatePassword(password);
+
+        user.setUsername(username);  
+        user.setEmail(email);
+        user.setPassword(password);
+
+
+        PreparedStatement pstmt = conn.prepareStatement(INSERT);
+
+        pstmt.setString(1,user.getUsername());
+        pstmt.setString(2, user.getEmail());
+        pstmt.setString(3, user.getPasswordHash());
+
+        pstmt.executeUpdate();
+        pstmt.close();
+
+        Logger.log("success", "userservice", "User created successfully.");
     }
 
-    public void userLoggin() throws  SQLException, UserNotFoundException {
+    public void userLoggin() throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException {
         user.setUsername(UserUI.receiveUsername());
         String rawPassword = UserUI.receivePassword(); 
 
@@ -76,7 +96,7 @@ public class UserService {
 
         UserController.validateCredentials(matched);
             
-        this.logger.log("success", "userservice", "login successfull.");
+        Logger.log("success", "userservice", "login successfull.");
         SessionManager.startSession(user.getUsername());   
     }
 
@@ -119,9 +139,11 @@ public class UserService {
 
     }
 
-    public void removeUser() throws SQLException {
+    public void removeUser() throws SQLException, UserNotFoundException, IOException {
        String username;
        username = SessionManager.who();
+       if (username == null) throw new UserNotFoundException();
+
        PreparedStatement pstmt = conn.prepareStatement(DELETE);
        pstmt.setString(1, username);
        pstmt.executeUpdate();
@@ -131,7 +153,7 @@ public class UserService {
     }
         
 
-    public void updateUsername()  throws SQLException {
+    public void updateUsername()  throws SQLException, IOException  {
         user.setUsername(UserUI.receiveUsername()); 
 
         PreparedStatement pstmt = conn.prepareStatement(UPDATEUSERNAME);
@@ -142,10 +164,10 @@ public class UserService {
         pstmt.executeUpdate();
         
         pstmt.close();
-        logger.log("success", "userservice", "Username changed successfully.");
+        Logger.log("success", "userservice", "Username changed successfully.");
     }
 
-    public void updateEmail()  throws SQLException {
+    public void updateEmail()  throws SQLException, IOException {
         user.setEmail(UserUI.receiveEmail()); 
 
         PreparedStatement pstmt = conn.prepareStatement(UPDATEEMAIL);
@@ -154,10 +176,10 @@ public class UserService {
         pstmt.executeUpdate();
         
         pstmt.close();
-        logger.log("success", "userservice", "Email changed successfully.");
+        Logger.log("success", "userservice", "Email changed successfully.");
     }
 
-    public void updatePassword()  throws SQLException {
+    public void updatePassword()  throws SQLException , IOException {
         user.setPassword(UserUI.receivePassword()); 
 
         PreparedStatement pstmt = conn.prepareStatement(UPDATEPASSWORD);
@@ -167,10 +189,10 @@ public class UserService {
         pstmt.executeUpdate();
 
         pstmt.close();
-        logger.log("success", "userservice", "password changed successfully.");
+        Logger.log("success", "userservice", "password changed successfully.");
     }
 
-    public void logout() {
+    public void logout() throws IOException {
         SessionManager.endSession();
     }
 

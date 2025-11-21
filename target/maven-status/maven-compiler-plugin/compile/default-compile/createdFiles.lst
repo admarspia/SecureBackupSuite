@@ -1,0 +1,15 @@
+exception/userservice/InvalidEmailFormatException.class
+user/UserController.class
+utils/SessionManager.class
+exception/userservice/InvalidUsernameException.class
+user/UserUI.class
+user/UserService.class
+config/DbConfig.class
+utils/Logger.class
+exception/userservice/UsernameExistsException.class
+utils/EncryptionUtils.class
+exception/userservice/UserNotFoundException.class
+exception/userservice/EmailExistsException.class
+user/UserModel.class
+exception/userservice/InvalidCredentialsException.class
+exception/userservice/InvalidPasswordException.class
