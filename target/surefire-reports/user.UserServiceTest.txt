@@ -1,22 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: user.UserServiceTest
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.310 s <<< FAILURE! -- in user.UserServiceTest
-user.UserServiceTest.testUserCreation -- Time elapsed: 0.274 s <<< FAILURE!
-org.opentest4j.AssertionFailedError: Unexpected exception thrown: exception.userservice.InvalidEmailFormatException: Invalid Email format.
-	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
-	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:84)
-	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:53)
-	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:36)
-	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3164)
-	at user.UserServiceTest.testUserCreation(UserServiceTest.java:26)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
-Caused by: exception.userservice.InvalidEmailFormatException: Invalid Email format.
-	at user.UserController.validateEmail(UserController.java:54)
-	at user.UserService.createNewUser(UserService.java:60)
-	at user.UserServiceTest.lambda$testUserCreation$0(UserServiceTest.java:27)
-	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:49)
-	... 6 more
-
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.478 s -- in user.UserServiceTest

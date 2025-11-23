@@ -1,0 +1,25 @@
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+success|userservice|User created successfully.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.InvalidUsernameException: Invalid username can't be to short or to long.
+Error|userservice|exception.userservice.EmailExistsException: Subscription found. Use another email or try Login.
+success|userservice|User created successfully.
+Error|userservice|exception.userservice.UsernameExistsException: username found. Use another username or try Login.
+Error|userservice|exception.userservice.InvalidEmailFormatException: Invalid Email format.
+success|userservice|login successfull.
+success|userservice|Email changed successfully.
+success|userservice|Username changed successfully.
+success|userservice|password changed successfully.
+success|userservice|Email changed successfully.
+success|userservice|login successfull.
+success|userservice|Username changed succes

@@ -100,6 +100,35 @@ public class UserService {
         SessionManager.startSession(user.getUsername());   
     }
 
+    // overloaded login method for testing
+
+    public void userLoggin(String username, String password) 
+        throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException 
+    {
+        user.setUsername(username);
+        String rawPassword = password; 
+
+        PreparedStatement pstmt = conn.prepareStatement(GETPASSWORD);
+        pstmt.setString(1, user.getUsername());
+
+        ResultSet rs = pstmt.executeQuery();
+
+        if (!rs.next()) throw new UserNotFoundException();
+
+        boolean matched = EncryptionUtils.verifyPassword(rawPassword, rs.getString("passwordHash"));
+
+        rs.close();
+        pstmt.close();
+
+
+        UserController.validateCredentials(matched);
+            
+        Logger.log("success", "userservice", "login successfull.");
+        SessionManager.startSession(user.getUsername());   
+
+    }
+
+
     public  UserModel getUser( String username ) throws SQLException {
         UserModel user = new UserModel();
         PreparedStatement pstmt = conn.prepareStatement(GETUSER);
@@ -112,12 +141,19 @@ public class UserService {
             user.setUsername(rs.getString("username"));
             user.setEmail(rs.getString("email"));
             user.setPasswordHash(rs.getString("passwordHash"));
-        pstmt.close();
-        rs.close();
+
+            pstmt.close();
+            rs.close();
+            
+            // added for test.
+            System.out.println(user.getUsername() + " " + user.getEmail() + " " + user.getPasswordHash() + " ");
+
             return user;
         }
 
     }
+
+
 
     public UserModel getUserByEmail( String email )  throws SQLException  {
         UserModel user = new UserModel();
@@ -131,8 +167,13 @@ public class UserService {
             user.setUsername(rs.getString("username"));
             user.setEmail(rs.getString("email"));
             user.setPasswordHash(rs.getString("passwordHash"));
-        pstmt.close();
-        rs.close();
+
+            pstmt.close();
+            rs.close();
+           
+            // for testing
+            System.out.println(user.getUsername() + " " + user.getEmail() + " " + user.getPasswordHash() + " ");
+
             return user;
         }
 
@@ -150,6 +191,9 @@ public class UserService {
        
        pstmt.close();
        SessionManager.endSession();
+        
+       Logger.log("success", "userservice", "User Deleted successfully.");
+
     }
         
 
@@ -167,8 +211,40 @@ public class UserService {
         Logger.log("success", "userservice", "Username changed successfully.");
     }
 
+    // overloaded updateUsername  method for testing
+    //
+    public void updateUsername( String username )  throws SQLException, IOException  {
+        user.setUsername( username ); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEUSERNAME);
+
+        pstmt.setString(1, user.getUsername());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Username changed successfully.");
+    }
+
+
+
     public void updateEmail()  throws SQLException, IOException {
         user.setEmail(UserUI.receiveEmail()); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEEMAIL);
+        pstmt.setString(1, user.getEmail());
+        pstmt.setString(2, SessionManager.who());
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Email changed successfully.");
+    }
+
+    // overloaded updateEmail method for testing
+
+    public void updateEmail(String email)  throws SQLException, IOException {
+        user.setEmail(email); 
 
         PreparedStatement pstmt = conn.prepareStatement(UPDATEEMAIL);
         pstmt.setString(1, user.getEmail());
@@ -191,9 +267,27 @@ public class UserService {
         pstmt.close();
         Logger.log("success", "userservice", "password changed successfully.");
     }
+    
+    // overloaded updatePassword method for testing
+
+    public void updatePassword( String password )  throws SQLException , IOException {
+        user.setPassword(password); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEPASSWORD);
+        pstmt.setString(1, user.getPasswordHash());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+
+        pstmt.close();
+        Logger.log("success", "userservice", "password changed successfully.");
+    }
+
 
     public void logout() throws IOException {
         SessionManager.endSession();
+        Logger.log("success", "userservice", "user Logged out successfully.");
+
     }
 
 
