@@ -1,0 +1,33 @@
+# Backup configuration file (default)
+backup:
+  enabled: true
+
+  # DAILY | WEEKLY | MONTHLY | HOURLY | INTERVAL | ONCE
+  frequency: DAILY
+
+  # Time of day to run
+  hours: 2          # 02:00 AM
+  minutes: 0
+  timezone: "Africa/Addis_Ababa"
+
+  # Only used for WEEKLY
+  # daysOfWeek:
+  #   - MON
+  #   - WED
+  #   - FRI
+  #
+  # Only used for MONTHLY
+  # daysOfMonth:
+  #   - 1
+  #   - 15
+  #   - 30
+
+  # Only used for INTERVAL
+  # intervalMinutes: 60   # run every hour
+
+  # Only used for ONCE
+  startDate: "2025-01-01"
+
+  # Recovery behavior if a run is missed or system was off
+  recoveryPolicy: RUN_IMMEDIATELY
+

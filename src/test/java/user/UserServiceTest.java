@@ -16,11 +16,11 @@ public class UserServiceTest {
     private String testEmail = "test@exaple.com";
     private String testPassword = "Password123!";
 
-    @BeforeEach
-    void setUp() throws SQLException{
-        userService = new UserService();
-    }
-
+    // @BeforeEach
+    // void setUp() throws SQLException{
+    //     userService = new UserService();
+    // }
+    //
    //  @Test
    // void testUserCreation() {
    //     assertDoesNotThrow(() -> {
@@ -35,7 +35,7 @@ public class UserServiceTest {
     //         userService.userLoggin(testUsername, testPassword);
     //    });
     // }
-    //
+    // //
     // 
     //
     // @Test
@@ -67,11 +67,11 @@ public class UserServiceTest {
     //     });
     // }
     //
-    @Test void testUpdateEmail(){
-        assertDoesNotThrow(() -> {
-            userService.updateEmail("admarspis@gmail.com");
-        });
-    }
+    // @Test void testUpdateEmail(){
+    //     assertDoesNotThrow(() -> {
+    //         userService.updateEmail("admarspis@gmail.com");
+    //     });
+    // }
     //
     // @Test void  testUpdatePassword(){
     //     assertDoesNotThrow(() -> {

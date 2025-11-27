@@ -1,6 +1,7 @@
 # Java build files
 /bin/
 /out/
+/target/
 /*.class
 
 # IDE files
