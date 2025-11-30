@@ -1,16 +1,23 @@
 package config.user_config.schedule_config;
 
+
 import java.time.*;
+import config.user_config.*;
+
 
 public class ConfigService {
 
     private static BackupScheduleConfigModel m;
+    private static RootConfig root;
     private static ZoneId zone;
     private static ZonedDateTime now;
 
     static {
         try {
-            m = ConfigLoader.load();
+            UserConfigLoader loader = new UserConfigLoader();
+            root = loader.load();
+            m = root.getSchedule();
+
             ConfigValidator.validate(m);
 
             zone = ZoneId.of(m.getTimezone());
