@@ -1,0 +1,48 @@
+schedule:
+  enabled: true
+
+  # DAILY | WEEKLY | MONTHLY | HOURLY | INTERVAL | ONCE
+  frequency: MONTHLY
+
+  # Time of day to run
+  hours: 3        # 02:00 AM
+  minutes: 0
+  timezone: "Africa/Addis_Ababa"
+
+  # Only used for WEEKLY
+  #daysOfWeek:
+  #  - MONDAY
+  #  - WEDNESDAY
+  #  - FRIDAY
+    
+  # Only used for MONTHLY
+  daysOfMonth:
+    - 1
+    - 29
+
+  # Only used for INTERVAL
+  # intervalMinutes: 60   # run every hour
+
+  # Only used for ONCE
+  #startDate: "2025-11-28"
+
+  # Recovery behavior if a run is missed or system was off
+  recoveryPolicy: RUN_IMMEDIATELY
+files:
+  sourcePaths:
+    - "/home/gamma/Documents"
+    - "/var/log"
+
+  includePatterns:
+    - "*.db"
+    - "*.log"
+    - "*.config"
+
+  excludePatterns:
+    - "*.tmp"
+    - "*/cache/*"
+
+  followSymlinks: false
+
+
+
