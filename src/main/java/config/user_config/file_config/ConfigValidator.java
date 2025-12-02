@@ -41,6 +41,11 @@ public class ConfigValidator {
             }
     }
 
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+
     private static boolean isValidFormat(String pattern)  {
         try {
             PathMatcher p = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
