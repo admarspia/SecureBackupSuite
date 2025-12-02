@@ -155,7 +155,6 @@ This project is implemented in **Java**, following OOP principles and clean pack
                          |-CloudConnectionHandler.java
                          |-SMBConnectionHandler.java
                          |-ConnectionHandlerResolver.java
-                         |-full.txt
                      |-SessionManager.java
                      |-Navigator.java
                  |-exception
