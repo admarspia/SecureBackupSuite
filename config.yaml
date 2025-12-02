@@ -44,5 +44,15 @@ files:
 
   followSymlinks: false
 
-
-
+storage:
+  type: SFTP # SMB LOCAL EXTERNAL PARTITION CLOUD NFS
+  #path: "path for LOCAL"
+  #share: "share for SMB"
+  #mountpoint: "for EXTErnaL and PARTITION"
+  #passwordPath: "for SMB, SFTP(if not by private key)"
+  host: "localhost"  
+  user: "testuser"
+  port: 2222
+  passwordPath: null
+  privateKeyPath: "/home/gamma/sftp/testuser/.ssh/sftp_id_rsa"
+  passPhrase: "testt"
