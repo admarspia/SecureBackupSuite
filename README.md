@@ -68,62 +68,99 @@ This project is implemented in **Java**, following OOP principles and clean pack
 |-pom.xml
 |-.gitignore
 |-backup_system/
-     |-src/
-         |-test/
-             |-java/
-                 |-java/
-                 |-notification/
-                 |-user/
+    |-src
+         |-test
+             |-java
+                 |-java
+                 |-notification
+                 |-user
                      |-UserServiceTest.java
-                 |-monitoring/
-                 |-backupConfiguration/
-                 |-storage/
-                 |-backup/
-                 |-restore/
-         |-main/
-             |-java/
-                 |-packages/
-                     |-notification/
+                 |-monitoring
+                 |-backupConfiguration
+                 |-storage
+                 |-config
+                     |-StorageConfigTest.java
+                     |-ScheduleConfigTest.java
+                     |-FileConfigTest.java
+                 |-backup
+                 |-restore
+         |-main
+             |-java
+                 |-packages
+                     |-notification
                          |-NotificationService.java
                          |-NotificationController.java
                          |-Notification.java
-                     |-user/
+                     |-user
                          |-UserUI.java
                          |-UserController.java
                          |-UserService.java
                          |-UserModel.java
-                     |-monitoring/
+                     |-monitoring
                          |-MonitoringService.java
                          |-MonitoringController.java
                          |-MonitoringLog.java
-                     |-backupConfiguration/
+                     |-backupConfiguration
                          |-BackupConfig.java
                          |-BackupConfigController.java
                          |-BackupConfigService.java
-                     |-storage/
+                     |-storage
                          |-StorageController.java
                          |-StorageService.java
                          |-StorageLocation.java
-                     |-backup/
+                     |-backup
                          |-BackupController.java
                          |-BackupService.java
                          |-Backup.java
-                     |-restore/
+                     |-restore
                          |-RestoreService.java
                          |-RestoreController.java
                          |-RestoreOperation.java
-                 |-config/
+                 |-config
+                     |-user_config
+                         |-UserConfigLoader.java
+                         |-RootConfig.java
+                         |-storage_config
+                             |-ConfigService.java
+                             |-StorageConfigModel.java
+                             |-ConfigValidator.java
+                         |-schedule_config
+                             |-ConfigService.java
+                             |-BackupScheduleConfigModel.java
+                             |-ConfigValidator.java
+                         |-file_config
+                             |-ConfigService.java
+                             |-BackupFilesConfigModel.java
+                             |-ConfigValidator.java
                      |-DbConfig.java
-                     |-Encryption.java
-                     |-Schedule.java
-                 |-utils/
+                     |-app_config
+                         |-DefaultStoragePolicy.java
+                         |-RecoveryPolicyConfig.java
+                         |-LoggingConfig.java
+                         |-SecurityConfig.java
+                         |-SystemCriticalFilesConfig.java
+                     |-YamlLoader.java
+                 |-utils
                      |-EncryptionUtils.java
                      |-Logger.java
                      |-FileUtils.java
+                     |-connection
+                         |-SFTPConnectionHandler.java
+                         |-ConnectionTester.java
+                         |-NFSConnectionHandler.java
+                         |-helpers
+                             |-CredentialUtils.java
+                             |-NetworkUtils.java
+                         |-ConnectionHandler.java
+                         |-CloudConnectionHandler.java
+                         |-SMBConnectionHandler.java
+                         |-ConnectionHandlerResolver.java
+                         |-full.txt
                      |-SessionManager.java
                      |-Navigator.java
-                 |-exception/
-                     |-userservice/
+                 |-exception
+                     |-config
+                     |-userservice
                          |-UsernameExistsException.java
                          |-InvalidUsernameException.java
                          |-InvalidPasswordException.java
@@ -131,8 +168,15 @@ This project is implemented in **Java**, following OOP principles and clean pack
                          |-InvalidEmailFormatException.java
                          |-UserNotFoundException.java
                          |-InvalidCredentialsException.java
-             |-App.java
-├── README.md
+                     |-connecion
+                         |-ShareNotFoundException.java
+                         |-HostUnreachableException.java
+                         |-ConnectionTestException.java
+                         |-AuthFailedException.java
+     |-resources
+     |-schedule.yaml
+     |-App.java
+
 
 ```
 
