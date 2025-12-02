@@ -7,11 +7,11 @@ import java.util.Set;
 import java.util.TreeSet;
 import config.user_config.schedule_config.*;
 import config.user_config.file_config.*;
-
+import config.user_config.storage_config.*;
 
 public class UserConfigLoader extends YamlLoader<RootConfig> {
 
-    public UserConfigLoader() {
+    public UserConfigLoader() throws IllegalArgumentException {
         super(RootConfig.class, "config.yaml");
     }
 
@@ -41,8 +41,16 @@ public class UserConfigLoader extends YamlLoader<RootConfig> {
         file.setExcludePatterns(new TreeSet<>(Set.of("*.tmp", "./cache")));
         file.setFollowSymlinks(false);
 
+        //for storage path selection
+
+        StorageConfigModel storage = new StorageConfigModel();
+        storage.setType(StorageConfigModel.Type.LOCAL);
+        storage.setPath("~/Documents");
+
+        System.out.println(storage.getType()+ " " +  storage.getPath());
         root.setSchedule(schedule);
         root.setFiles(file);
+        root.setStorage(storage);
 
         return root;
     }
