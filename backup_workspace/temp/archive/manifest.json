@@ -1,0 +1,20 @@
+{
+  "backupType" : "INCREMENTAL",
+  "timestamp" : "2025-12-11T23:30:52.576719212+03:00[Africa/Addis_Ababa]",
+  "entries" : [ {
+    "original" : "file:///home/gamma/test/test.java",
+    "hash" : "c83f944d83e6ef4291ffdb59b0a66f1a70f93da0ebb5e554050d919fc679afe6",
+    "originalSize" : 416,
+    "at" : "20251211232834"
+  }, {
+    "original" : "file:///home/gamma/test/mymath.o",
+    "hash" : "941aa25cd5c84b737d21c6a412af553b64f6bddaa89efbd2c8fdb708422b7c0e",
+    "originalSize" : 1336,
+    "at" : "20251211232834"
+  }, {
+    "original" : "file:///home/gamma/test/dayly.txt",
+    "hash" : "e5d26194ca75f6470ce4706069096cfefd959deec62eb2ab852f9664df81299e",
+    "originalSize" : 858,
+    "at" : "20251211232834"
+  } ]
+}
