@@ -85,6 +85,11 @@ public class FullRecoveryService implements Recoveryable {
         }
 
         System.out.println("Full recovery completed at " + recoveryWorkspace);
+
+
+        FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+        FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
+
     }
 }
 

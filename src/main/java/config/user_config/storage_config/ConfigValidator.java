@@ -21,7 +21,7 @@ public class ConfigValidator {
         String passwordPath = m.getPasswordPath();
         String remotePath = m.getRemotePath();
         String localMount = m.getLocalMount();
-        String privateKey = m.getPrivateKeyPath(); // Fixed wrong getter
+        String privateKey = m.getPrivateKeyPath(); 
         int port = m.getPort();
 
         if (type == StorageConfigModel.Type.LOCAL) {

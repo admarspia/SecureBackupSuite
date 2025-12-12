@@ -18,8 +18,8 @@ public final class FileUtils {
         try (Stream<Path> s = recursive ? Files.walk(dir) : Files.list(dir)) {
             return s.filter(Files::isRegularFile)
                     .filter(p -> matcher.matches(p.getFileName()))
-                    .distinct() // deduplicate files
-                    .filter(p -> !p.getFileName().toString().startsWith(".~lock")) // optional: skip lock files
+                    .distinct() 
+                    .filter(p -> !p.getFileName().toString().startsWith(".~lock"))
                     .collect(Collectors.toList());
         }
     }
@@ -39,7 +39,7 @@ public final class FileUtils {
         if (Files.notExists(dir)) return;
 
         Files.walk(dir)
-             .sorted((a, b) -> b.compareTo(a)) // delete children first
+             .sorted((a, b) -> b.compareTo(a)) 
              .forEach(path -> {
                  try {
                      Files.delete(path);

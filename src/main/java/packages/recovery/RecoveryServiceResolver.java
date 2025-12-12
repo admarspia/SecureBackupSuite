@@ -7,7 +7,7 @@ public class RecoveryServiceResolver {
             case FULL:
                 return new FullRecoveryService();
             case SELECTIVE:
-                return new SelectiveRecoveryService("test.java", "20251211232834");
+                return new SelectiveRecoveryService();
             default:
                 throw new UnsupportedOperationException("Unsupported Operation: " + type);
         }

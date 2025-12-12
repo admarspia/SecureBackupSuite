@@ -24,7 +24,7 @@ public class BackupScheduleConfigModel {
     private int intervalMinutes;
     private Policy recoveryPolicy;
 
-    // Getters
+     
     public Frequency getFrequency() { return frequency; }
     public boolean isEnabled() { return enabled; }
     public int getHours() { return hours; }
@@ -40,7 +40,6 @@ public class BackupScheduleConfigModel {
 
     public Policy getRecoveryPolicy() { return recoveryPolicy; }
 
-    // Setters
     public void setFrequency(Frequency frequency) { this.frequency = frequency; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setHours(int hours) { this.hours = hours; }

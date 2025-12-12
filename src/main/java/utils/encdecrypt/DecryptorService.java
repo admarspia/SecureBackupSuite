@@ -19,7 +19,7 @@ public class DecryptorService {
         this.workers = Executors.newFixedThreadPool(this.workerCount);
     }
 
-    public void start() {
+    public void start() throws Exception {
         for (int i = 0; i < workerCount; i++) {
             workers.submit(() -> {
                 try {

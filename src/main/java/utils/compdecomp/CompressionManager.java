@@ -24,7 +24,7 @@ public class CompressionManager {
     private final Path tempDir;
     private final ExecutorService workers;
     private ManifestBuilder manifest;
-    private String timestamp = ZonedDateTime.now(ZoneId.systemDefault()).format(TS);
+    private String timestamp;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
 
@@ -54,6 +54,8 @@ public class CompressionManager {
                     workers.submit(() -> {
                         try {
                             Path compressed = compressor.compress(f, tempDir);
+                            timestamp = compressed.getFileName().toString().split("_")[1].split("\\.")[0];
+
                             Queues.COMPRESSED_QUEUE.put(compressed);
                             manifest.addEntry(new ManifestEntry(
                                         f,
@@ -93,6 +95,7 @@ public class CompressionManager {
                 try {
                     Path compressed = compressor.compress(file, tempDir);
                     Queues.COMPRESSED_QUEUE.put(compressed);
+                    timestamp = compressed.getFileName().toString().split("_")[1].split("\\.")[0];
 
                     manifest.addEntry(new ManifestEntry(
                                 file,

@@ -26,7 +26,7 @@ public class LocalStorageReader implements StorageReader {
             }
         }
 
-        Queues.ENCRYPTED_QUEUE.put(Queues.POISON); // signal end
+        Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
     }
 }
 

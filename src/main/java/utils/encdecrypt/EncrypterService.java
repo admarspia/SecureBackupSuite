@@ -44,14 +44,16 @@ public class EncrypterService {
     }
 
     public void stop() throws InterruptedException {
-        // signal the workers to exit
         for (int i = 0; i < workerCount; i++) {
+
             Queues.COMPRESSED_QUEUE.put(Queues.POISON);
         }
+
         workers.shutdown();
         workers.awaitTermination(1, TimeUnit.HOURS);
-        // signal storage workers that encryption is done
+
         for (int i = 0; i < StorageManager.workerCount; i++) {
+
             Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
         }
     }

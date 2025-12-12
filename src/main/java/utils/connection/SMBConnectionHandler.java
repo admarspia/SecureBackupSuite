@@ -55,7 +55,7 @@ public class SMBConnectionHandler implements ConnectionHandler {
             Session session = connection.authenticate(ac);
 
             try (DiskShare disk = (DiskShare) session.connectShare(share)) {
-                disk.list("");  // test accessibility
+                disk.list("");  
                 return client;
             } catch (Exception ex) {
                 throw new Exception("Couldn't open share " + share + " on host " + host, ex);

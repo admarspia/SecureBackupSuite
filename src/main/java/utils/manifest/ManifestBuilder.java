@@ -27,11 +27,9 @@ public class ManifestBuilder {
         Files.createDirectories(manifestDir);
         this.manifestFile = manifestDir.resolve("manifest.json");
 
-        // Load previous manifest entries (if exists)
         loadExistingManifest();
     }
 
-    /** Load old entries into memory */
     private void loadExistingManifest() {
         if (!Files.exists(manifestFile)) return;
 
@@ -60,13 +58,11 @@ public class ManifestBuilder {
         }
     }
 
-    /** Add or update matching entries */
     public synchronized void addEntry(ManifestEntry entry) {
         entries.removeIf(e -> e.hash().equals(entry.hash()));
         entries.add(entry);
     }
 
-    /** Write full manifest to disk */
     public synchronized void save() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -80,9 +76,8 @@ public class ManifestBuilder {
         mapper.writeValue(manifestFile.toFile(), manifestObject);
     }
 
-    /** New getter for loaded entries */
     public synchronized List<ManifestEntry> getLoadedEntries() {
-        return new ArrayList<>(entries); // return a copy to prevent modification
+        return new ArrayList<>(entries); 
     }
 
     public record ManifestRoot(

@@ -17,14 +17,14 @@ public class StorageManager {
     private final StorageConfigModel config;
     private boolean running = false;
 
-    public StorageManager(StorageWriter writer, StorageConfigModel config, int threads) {
+    public StorageManager(StorageWriter writer, StorageConfigModel config, int threads)  {
         this.writer = writer;
         this.workerCount = threads;
         this.workers = Executors.newFixedThreadPool(workerCount);
         this.config =  config;
     }
 
-    public void start() {
+    public void start() throws Exception {
         for (int i = 0; i < workerCount; i++) {
             workers.submit(() -> {
                 try {
@@ -36,8 +36,10 @@ public class StorageManager {
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
+                    throw ex;
                 } catch (IOException e) {
                     Logger.log("ERROR", "storage", e.getMessage());
+                    throw ex;
                 }
             });
         }

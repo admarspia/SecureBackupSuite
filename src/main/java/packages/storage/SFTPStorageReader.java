@@ -50,7 +50,7 @@ public class SFTPStorageReader implements StorageReader {
             if (session != null && session.isConnected()) session.disconnect();
         }
 
-        Queues.ENCRYPTED_QUEUE.put(Queues.POISON); // signal end
+        Queues.ENCRYPTED_QUEUE.put(Queues.POISON); 
     }
 
     private Session createSession(StorageConfigModel config) throws ConnectionTestException, IOException {

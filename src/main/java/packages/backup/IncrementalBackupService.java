@@ -109,7 +109,8 @@ public class IncrementalBackupService implements Backupable {
                 }
             }
         } catch (IOException ex) {
-            System.out.println("Failed to read manifest: " + ex);
+            Logger.log("ERROR","Failed to read manifest", ex.getMessage());
+            throw ex;
         }
 
         return hashes;

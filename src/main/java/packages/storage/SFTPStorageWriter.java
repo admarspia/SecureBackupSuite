@@ -75,7 +75,6 @@ public class SFTPStorageWriter implements StorageWriter {
             try {
                 sftp.cd(current);
             } catch (SftpException ex) {
-                // Directory doesn't exist, create it
                 sftp.mkdir(current);
             }
         }

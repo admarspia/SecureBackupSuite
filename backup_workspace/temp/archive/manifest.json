@@ -1,6 +1,6 @@
 {
   "backupType" : "INCREMENTAL",
-  "timestamp" : "2025-12-11T23:30:52.576719212+03:00[Africa/Addis_Ababa]",
+  "timestamp" : "2025-12-13T00:25:21.947610131+03:00[Africa/Addis_Ababa]",
   "entries" : [ {
     "original" : "file:///home/gamma/test/test.java",
     "hash" : "c83f944d83e6ef4291ffdb59b0a66f1a70f93da0ebb5e554050d919fc679afe6",
@@ -16,5 +16,10 @@
     "hash" : "e5d26194ca75f6470ce4706069096cfefd959deec62eb2ab852f9664df81299e",
     "originalSize" : 858,
     "at" : "20251211232834"
+  }, {
+    "original" : "file:///home/gamma/test/dayly.txt",
+    "hash" : "4061cbbc737698b50a3d40fec585f7856ed6ed881d306295dc627ea02a518752",
+    "originalSize" : 780,
+    "at" : "20251213002522"
   } ]
 }

@@ -11,7 +11,7 @@ import java.util.Objects;
 
 public class GzipCompressor implements Compressable {
 
-    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
     @Override
     public Path compress(Path source, Path targetDir) throws IOException {

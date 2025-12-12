@@ -56,7 +56,6 @@ public class ConfigService {
         if (m == null || !m.isEnabled())
             return null;
 
-        // Get current time here dynamically
         ZonedDateTime current = ZonedDateTime.now(zone);
 
         BackupScheduleConfigModel.Status lastStatus = getLastStatus();

@@ -8,8 +8,8 @@ import java.io.IOException;
 public class CredentialUtils {
 
     public static String readPasswordPath(String path) throws IOException {
-        Path p = Path.of(path); // fixed variable naming
-        return Files.readAllLines(p, StandardCharsets.UTF_8).get(0).trim(); // first line
+        Path p = Path.of(path); 
+        return Files.readAllLines(p, StandardCharsets.UTF_8).get(0).trim(); 
     }
 
     public static boolean fileExists(String path) {
