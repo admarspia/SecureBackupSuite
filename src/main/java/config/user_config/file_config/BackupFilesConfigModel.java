@@ -10,6 +10,7 @@ public class BackupFilesConfigModel {
     private Set<String> excludePatterns = new TreeSet<>();
     private boolean followSymlinks = false;  
     private final int maxFollowDepth = 10;
+    private boolean recursive;
 
     public void setSourcePaths(Set<String> sourcePaths) {
         this.sourcePaths.clear();
@@ -30,6 +31,11 @@ public class BackupFilesConfigModel {
         this.followSymlinks = followSymlinks;
     }
     
+    public void setRecursive(boolean isRecursive) {
+        this.recursive = isRecursive;
+    }
+
+    public boolean getRecursive() { return recursive;}
 
     public Set<String> getSourcePaths() {
         return this.sourcePaths;

@@ -31,7 +31,10 @@ public class ConfigService {
     public static StorageConfigModel.Type getDestinationType(){
         return config.getType();
     }
-
+    
+    public static StorageConfigModel getConfig(){
+        return config;
+    }
     public static String getLocalDest(){
         return config.getPath();
     }

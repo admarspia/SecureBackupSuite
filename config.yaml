@@ -2,11 +2,12 @@ schedule:
   enabled: true
 
   # DAILY | WEEKLY | MONTHLY | HOURLY | INTERVAL | ONCE
-  frequency: MONTHLY
+  frequency: INTERVAL
 
   # Time of day to run
-  hours: 3        # 02:00 AM
-  minutes: 0
+  #hours: 3        # 02:00 AM
+  #minutes: 3
+  intervalMinutes: 1
   timezone: "Africa/Addis_Ababa"
 
   # Only used for WEEKLY
@@ -16,9 +17,9 @@ schedule:
   #  - FRIDAY
     
   # Only used for MONTHLY
-  daysOfMonth:
-    - 1
-    - 29
+  #daysOfMonth:
+  # - 1
+  # - 29
 
   # Only used for INTERVAL
   # intervalMinutes: 60   # run every hour
@@ -30,29 +31,27 @@ schedule:
   recoveryPolicy: RUN_IMMEDIATELY
 files:
   sourcePaths:
-    - "/home/gamma/Documents"
-    - "/var/log"
+    - "/home/gamma/test"
 
   includePatterns:
-    - "*.db"
-    - "*.log"
-    - "*.config"
-
+    - "*.*"
   excludePatterns:
     - "*.tmp"
     - "*/cache/*"
 
   followSymlinks: false
+  recursive: false
 
 storage:
-  type: SFTP # SMB LOCAL EXTERNAL PARTITION CLOUD NFS
-  #path: "path for LOCAL"
+  type: LOCAL #SFTP # PARTITION CLOUD NFS
+  path: "/home/gamma/backup"
+  encryptionKey: "p8E4R4y3lQk0WJg+q5+F3HkGmA2pJv3g9v7zqJ1s9cc="
   #share: "share for SMB"
-  #mountpoint: "for EXTErnaL and PARTITION"
+  #mountPoint: "/mnt/backup"
   #passwordPath: "for SMB, SFTP(if not by private key)"
   host: "localhost"  
   user: "testuser"
   port: 2222
-  passwordPath: null
-  privateKeyPath: "/home/gamma/sftp/testuser/.ssh/sftp_id_rsa"
-  passPhrase: "testt"
+  passwordPath: "/home/gamma/password.txt"
+  #privateKeyPath: "/home/gamma/sftp/testuser/.ssh/sftp_id_rsa"
+  #passPhrase: "testt"

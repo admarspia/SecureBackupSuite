@@ -22,6 +22,11 @@ public class ConfigService{
         }
     }
 
+    public static BackupFilesConfigModel getConfig() {
+        return m;
+    }
+
+// for testing
     public static List<Set<String>> getFiles() {
         List<Set<String>> files = new ArrayList<>();
         files.add(m.getSourcePaths());

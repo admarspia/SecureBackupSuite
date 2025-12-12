@@ -18,8 +18,9 @@ public class StorageConfigModel {
     private String bucket;
     private String accessKey;
     private String secretKey;
-    private String passPhrase; 
+    private String passPhrase;
     private int port;
+    private String encryptionKey;
 
     public void setType(Type type) { this.type = type; }
     public void setPath(String path) { this.path = path; }
@@ -37,6 +38,7 @@ public class StorageConfigModel {
     public void setSecretKey(String secretKey) { this.secretKey = secretKey; }
     public void setPassPhrase(String passPhrase) { this.passPhrase = passPhrase; }
     public void setPort(int port) { this.port = port; }
+    public void setEncryptionKey(String encryptionKey) { this.encryptionKey = encryptionKey; }
 
     public Type getType() { return type; }
     public String getPath() { return path; }
@@ -54,6 +56,7 @@ public class StorageConfigModel {
     public String getSecretKey() { return secretKey; }
     public String getPassPhrase() { return passPhrase; }
     public int getPort() { return port; }
+    public String getEncryptionKey() { return encryptionKey; }
 
     @Override
     public String toString() {

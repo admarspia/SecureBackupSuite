@@ -8,7 +8,7 @@ import java.util.TreeSet;
 public class BackupScheduleConfigModel {
 
     public enum Frequency { DAILY, WEEKLY, MONTHLY, HOURLY, INTERVAL, ONCE }
-    public enum Status { SUCCESS, FAILED, MISSED }
+    public enum Status { SUCCESS, FAILED, MISSED, UNKNOWN }
     public enum Policy { RUN_IMMEDIATELY, SKIP }
 
     private Frequency frequency;
