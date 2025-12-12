@@ -15,6 +15,7 @@ import utils.connection.helpers.*;
 import utils.encdecrypt.*;
 import storage.*;
 import utils.Logger;
+import utils.compdecomp.FileUtils;
 
 public class FullBackupService implements Backupable {
 
@@ -96,6 +97,7 @@ public class FullBackupService implements Backupable {
             System.out.println("Full backup completed.");
             Logger.log(BackupScheduleConfigModel.Status.SUCCESS.name(), "backup", "backup completed successfully.");
 
+            FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
 
         } catch (Exception ex) {
             throw ex;

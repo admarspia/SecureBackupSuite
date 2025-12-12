@@ -10,8 +10,8 @@ import user.*;
 
 public class App {
     public static void main(String[] args) {
-       // Backup.backup();
-        Recovery.recover();
+       Backup.backup();
+       // Recovery.recover();
         //ManifestDisplay.display();
     }
 }

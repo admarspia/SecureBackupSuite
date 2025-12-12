@@ -88,13 +88,15 @@ public class IncrementalBackupService implements Backupable {
             System.out.println("Incremental backup completed.");
             Logger.log(BackupScheduleConfigModel.Status.SUCCESS.name(), "backup", "Incremental backup completed successfully.");
 
+            FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+
         } catch (Exception ex) {
             Logger.log(BackupScheduleConfigModel.Status.FAILED.name(), "backup", ex.getMessage());
             throw ex;
         }
     }
 
-    private Set<String> loadManifestHashes(Path manifestPath) {
+    private Set<String> loadManifestHashes(Path manifestPath) throws IOException {
         Set<String> hashes = new HashSet<>();
         if (!Files.exists(manifestPath)) return hashes;
 
