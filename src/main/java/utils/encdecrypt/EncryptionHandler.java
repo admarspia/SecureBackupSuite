@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.util.Objects;
 import java.util.Base64;
 
+import utils.compdecomp.FileUtils;
+
 
 public final class EncryptionHandler implements Encryptable {
     private static final int IV_LENGTH = 12;

@@ -6,25 +6,31 @@ import config.user_config.schedule_config.*;
 
 public class BackupScheduler {
 
-    public boolean isTime() {
-        BackupScheduleConfigModel.Frequency freq = ConfigService.getFrequency();
+    public boolean isTime() throws Exception {
+        try {
+            BackupScheduleConfigModel.Frequency freq = ConfigService.getFrequency();
 
-        ZonedDateTime nextRun = ConfigService.getNextRuntime();
-        ZonedDateTime now = ZonedDateTime.now(nextRun.getZone());  // same zone
-       
-        switch (freq) {
-            case WEEKLY:
-            case MONTHLY:
-            case ONCE:
-                return sameDateAndTime(now, nextRun);
+            ZonedDateTime nextRun = ConfigService.getNextRuntime();
+            ZonedDateTime now = ZonedDateTime.now(nextRun.getZone()); 
+            System.out.println("now: " + now + "\tnext" + nextRun);
+            // same zone
 
-            case DAILY:
-            case HOURLY:
-            case INTERVAL:
-                return sameTime(now, nextRun);
+            switch (freq) {
+                case WEEKLY:
+                case MONTHLY:
+                case ONCE:
+                    return sameDateAndTime(now, nextRun);
 
-            default:
-                return false;
+                case DAILY:
+                case HOURLY:
+                case INTERVAL:
+                    return sameTime(now, nextRun);
+
+                default:
+                    return false;
+            }
+        } catch (Exception ex){
+            throw ex;
         }
     }
 

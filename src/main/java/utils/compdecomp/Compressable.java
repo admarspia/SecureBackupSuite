@@ -1,4 +1,4 @@
-package utils.compdecompi;
+package utils.compdecomp;
 
 import java.nio.file.Path;
 import java.io.IOException;

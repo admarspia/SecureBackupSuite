@@ -35,7 +35,7 @@ public class DecryptorService {
                             Path decrypted = EncryptionAdapter.decrypt(encrypted);
                             Queues.DECRYPTED_QUEUE.put(decrypted);
                         } catch (Exception ex) {
-                            Logger.log("Decryption failed for " + encrypted + ": " + ex);
+                            Logger.log("Error", "decryption", ex.getMessage());
                         }
                     }
                 } catch (InterruptedException ie) {

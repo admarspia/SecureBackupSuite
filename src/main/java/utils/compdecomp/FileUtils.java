@@ -18,6 +18,8 @@ public final class FileUtils {
         try (Stream<Path> s = recursive ? Files.walk(dir) : Files.list(dir)) {
             return s.filter(Files::isRegularFile)
                     .filter(p -> matcher.matches(p.getFileName()))
+                    .distinct() // deduplicate files
+                    .filter(p -> !p.getFileName().toString().startsWith(".~lock")) // optional: skip lock files
                     .collect(Collectors.toList());
         }
     }
@@ -31,6 +33,30 @@ public final class FileUtils {
     public static Path tempFile(Path dir, String prefix, String suffix) throws IOException {
         ensureDir(dir);
         return Files.createTempFile(dir, prefix, suffix);
+    }
+
+    public static void deleteDirectoryRecursively(Path dir) throws IOException {
+        if (Files.notExists(dir)) return;
+
+        Files.walk(dir)
+             .sorted((a, b) -> b.compareTo(a)) // delete children first
+             .forEach(path -> {
+                 try {
+                     Files.delete(path);
+                 } catch (IOException e) {
+                     throw new RuntimeException("Failed to delete: " + path, e);
+                 }
+             });
+    }
+
+    public  static void cleanup(Path dir) {
+        if (Files.exists(dir)) {
+            try {
+                FileUtils.deleteDirectoryRecursively(dir);
+            } catch (IOException e) {
+                System.err.println("Failed to clean temp directory " + dir + ": " + e.getMessage());
+            }
+        }
     }
 }
 

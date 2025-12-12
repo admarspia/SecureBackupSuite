@@ -4,64 +4,103 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import config.user_config.file_config.BackupFilesConfigModel;
-import config.user_config.file_config.ConfigService as FileConfigService;
+import config.user_config.file_config.ConfigService; // File config
 import config.user_config.storage_config.StorageConfigModel;
-import config.user_config.storage_config.ConfigService as StorageConfigService;
+import config.user_config.schedule_config.BackupScheduleConfigModel;
 
 import utils.compdecomp.GzipCompressor;
 import utils.compdecomp.CompressionManager;
-
-import utils.encdecrypt.EncrypterService;
-
-import storage.LocalStorageWriter;
-import storage.StorageManager;
+import utils.connection.*;
+import utils.connection.helpers.*;
+import utils.encdecrypt.*;
+import storage.*;
+import utils.Logger;
 
 public class FullBackupService implements Backupable {
 
     @Override
-    public void backup() {
-        StorageConfigModel.Type storageType = StorageConfigService.getDestinationType();
-        BackupFilesConfigModel fileConfig = FileConfigService.getConfig();
+    public void backup() throws Exception {
+        try {
+            BackupFilesConfigModel fileConfig =
+                config.user_config.file_config.ConfigService.getConfig();
 
-        Set<String> srcDirs = fileConfig.getSources();
-        Set<String> includePatterns = fileConfig.getIncludePatterns();
-        boolean recursive = fileConfig.isRecursive();
+            Set<String> srcDirs = fileConfig.getSourcePaths();
+            Set<String> includePatterns = fileConfig.getIncludePatterns();
+            boolean recursive = fileConfig.getRecursive();
 
-        Path localDest;
+            StorageConfigModel conf =
+                config.user_config.storage_config.ConfigService.getConfig();
+        
+            StorageConfigModel.Type type = conf.getType();
 
-        switch (storageType) {
-            case LOCAL:
-                localDest = StorageConfigService.getLocalDest();
-                break;
+            String base64Key = conf.getEncryptionKey();
+            EncryptionHandler encryptionHandler = EncryptionHandler.fromBase64Key(base64Key);
+            EncryptionAdapter.setHandler(encryptionHandler);
 
-            default:
-                throw new UnsupportedOperationException("Only LOCAL storage is implemented");
+            CompressionManager compressor = new CompressionManager(
+                    new GzipCompressor(),
+                    Path.of("backup_workspace/temp/compressed/"),
+                    2,
+                    BackupModel.Type.FULL
+                    );
+
+            EncrypterService encrypter = new EncrypterService(2);
+            StorageManager storageManager = null;
+
+            switch (type){
+                case LOCAL:
+                    storageManager = new StorageManager(
+                            new LocalStorageWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case EXTERNAL:
+                case PARTITION: 
+                    storageManager = new StorageManager(
+                            new MountedDeviceWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case SMB:
+                    storageManager = new StorageManager(
+                            new SMBStorageWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case SFTP:
+                    System.out.println("inside sftp writer");
+                    System.out.println(config.user_config.storage_config.ConfigService.testConnection());
+                    storageManager = new StorageManager(
+                            new SFTPStorageWriter(),
+                            conf,
+                            2);
+                    break;
+                default:
+                    throw new UnsupportedOperationException(
+                        "Unsupported Operation: " + type);
+
+            }
+
+            encrypter.start();
+            storageManager.start();
+
+            compressor.compressAll(srcDirs, includePatterns, recursive);
+
+
+            encrypter.stop();
+            storageManager.stop();
+
+            System.out.println("Full backup completed.");
+            Logger.log(BackupScheduleConfigModel.Status.SUCCESS.name(), "backup", "backup completed successfully.");
+
+
+        } catch (Exception ex) {
+            throw ex;
         }
-
-        CompressionManager compressor = new CompressionManager(
-                new GzipCompressor(),
-                Path.of("backup_workspace/temp/compressed/"),
-                2
-        );
-
-        EncrypterService encrypter = new EncrypterService(2);
-
-        StorageManager storageManager = new StorageManager(
-                new LocalStorageWriter(),
-                localDest,
-                2
-        );
-
-        encrypter.start();
-        storageManager.start();
-
-        compressor.compressAll(srcDirs, includePatterns, recursive);
-
-        compressor.stop();                
-        encrypter.stop();         
-        storageManager.stop();  
-
-        System.out.println("Full backup completed.");
     }
+
 }
 
