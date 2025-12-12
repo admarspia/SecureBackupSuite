@@ -1,0 +1,214 @@
+./BackupController.java
+package backup;
+
+
+public class BackupController<T extends Backupable> {
+
+    private final <T> backupService;
+
+    public BackupController(<T> backupService) {
+        this.backupService = backupService;
+    }
+
+    public void runBackup() {
+        backupService.backup();
+    }
+}
+
+./BackupScheduler.java
+package backup;
+
+import java.time.*;
+
+import config.user_config.schedule_config.*;
+
+public class BackupScheduler {
+
+    public boolean isTime() {
+        BackupScheduleConfigModel.Frequency freq = ConfigService.getFrequency();
+
+        ZonedDateTime nextRun = ConfigService.getNextRuntime();
+        ZonedDateTime now = ZonedDateTime.now(nextRun.getZone());  // same zone
+       
+        switch (freq) {
+            case WEEKLY:
+            case MONTHLY:
+            case ONCE:
+                return sameDateAndTime(now, nextRun);
+
+            case DAILY:
+            case HOURLY:
+            case INTERVAL:
+                return sameTime(now, nextRun);
+
+            default:
+                return false;
+        }
+    }
+
+    private boolean sameDateAndTime(ZonedDateTime now, ZonedDateTime run) {
+        return  now.getDayOfMonth() == run.getDayOfMonth() &&
+                now.getHour() == run.getHour() &&
+                now.getMinute() == run.getMinute();
+    }
+
+    private boolean sameTime(ZonedDateTime now, ZonedDateTime run) {
+        return now.getHour() == run.getHour() &&
+               now.getMinute() == run.getMinute();
+    }
+}
+
+
+
+./PredictiveBackupService.java
+./BackupModel.java
+package backup;
+
+public class BackupModel {
+    public enum Type {FULL, INCREMENTAL, PRIDICTIVE };
+    private Type type;
+
+    public void setType(Type type) { this.type = type; }
+    public Type getType { return type; }
+}
+./BackupDeamon.java
+package backup;
+
+public class BackupDaemon implements Runnable {
+
+    private final BackupScheduler scheduler;
+    private final BackupController controller;
+
+    private volatile boolean running = true;
+
+    public BackupDaemon(BackupScheduler scheduler, BackupController controller) {
+        this.scheduler = scheduler;
+        this.controller = controller;
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (running) {
+                
+                if (scheduler.isTime()) {
+                    controller.runBackup();
+                } else {
+                    Thread.sleep(30000); // sleep 30s
+                }
+            }
+
+        } catch (InterruptedException ex) {
+            running = false;
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void stop() {
+        running = false;
+    }
+}
+
+./Backupable.java
+package backup;
+
+import java.io.IOException;
+import config.user_config.file_config.BackupFileConfigModel;
+import config.user_config.storage_config.StorageConfigModel;
+import config.user_config.schedule_config.BackupScheduleConfigModel;
+
+public interface Backupable {
+    void backup(StorageConfigModel storageType) throws RuntimeException;
+}
+./BackupServiceResolver.java
+package backup;
+
+
+public class BackupServiceResolver {
+
+    public static BackupServiceResolver getHandler(BackupModel.Type type) {
+        switch (type) {
+            case FULL:
+                return new FullBackupService();
+            case INCREMENTAL:
+                return new IncrementalBackupService();
+            case PREDICTIVE:
+                return new PredictiveBackupService();
+            default:
+                throw new UnsupportedOperationException(
+                        "Unsupported Operation: " + config.getType()
+                );
+        }
+    }
+}
+
+./Backup.java
+./FullBackupService.java
+package backup;
+
+import java.nio.file.Path;
+import java.util.Set;
+
+import config.user_config.file_config.BackupFilesConfigModel;
+import config.user_config.file_config.ConfigService as FileConfigService;
+import config.user_config.storage_config.StorageConfigModel;
+import config.user_config.storage_config.ConfigService as StorageConfigService;
+
+import utils.compdecomp.GzipCompressor;
+import utils.compdecomp.CompressionManager;
+
+import utils.encdecrypt.EncrypterService;
+
+import storage.LocalStorageWriter;
+import storage.StorageManager;
+
+public class FullBackupService implements Backupable {
+
+    @Override
+    public void backup() {
+        StorageConfigModel.Type storageType = StorageConfigService.getDestinationType();
+        BackupFilesConfigModel fileConfig = FileConfigService.getConfig();
+
+        Set<String> srcDirs = fileConfig.getSources();
+        Set<String> includePatterns = fileConfig.getIncludePatterns();
+        boolean recursive = fileConfig.isRecursive();
+
+        Path localDest;
+
+        switch (storageType) {
+            case LOCAL:
+                localDest = StorageConfigService.getLocalDest();
+                break;
+
+            default:
+                throw new UnsupportedOperationException("Only LOCAL storage is implemented");
+        }
+
+        CompressionManager compressor = new CompressionManager(
+                new GzipCompressor(),
+                Path.of("backup_workspace/temp/compressed/"),
+                2
+        );
+
+        EncrypterService encrypter = new EncrypterService(2);
+
+        StorageManager storageManager = new StorageManager(
+                new LocalStorageWriter(),
+                localDest,
+                2
+        );
+
+        encrypter.start();
+        storageManager.start();
+
+        compressor.compressAll(srcDirs, includePatterns, recursive);
+
+        compressor.stop();                
+        encrypter.stop();         
+        storageManager.stop();  
+
+        System.out.println("Full backup completed.");
+    }
+}
+
+./IncrementalBackupService.java
