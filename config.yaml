@@ -1,57 +1,141 @@
+# ============================================================
+# BACKUP SYSTEM CONFIGURATION
+# ============================================================
+# This file controls scheduling, file selection, storage
+# targets, and security behavior of the backup system.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# SCHEDULER SETTINGS
+# ------------------------------------------------------------
 schedule:
+
+  # Enable or disable scheduled backups
   enabled: true
 
-  # DAILY | WEEKLY | MONTHLY | HOURLY | INTERVAL | ONCE
+  # Backup execution frequency
+  # Allowed values:
+  #   DAILY | WEEKLY | MONTHLY | HOURLY | INTERVAL | ONCE
   frequency: INTERVAL
 
-  # Time of day to run
-  #hours: 3        # 02:00 AM
-  #minutes: 3
-  intervalMinutes: 1
+  # ----------------------------------------------------------
+  # TIMEZONE
+  # ----------------------------------------------------------
+  # All scheduling calculations use this timezone
   timezone: "Africa/Addis_Ababa"
 
-  # Only used for WEEKLY
+  # ----------------------------------------------------------
+  # INTERVAL MODE SETTINGS
+  # ----------------------------------------------------------
+  # Used only when frequency = INTERVAL
+  # Run backup every N minutes
+  intervalMinutes: 1
+
+  # ----------------------------------------------------------
+  # DAILY MODE SETTINGS
+  # ----------------------------------------------------------
+  # Used only when frequency = DAILY
+  #hours: 2          # Hour of day (0–23)
+  #minutes: 0        # Minute of hour (0–59)
+
+  # ----------------------------------------------------------
+  # WEEKLY MODE SETTINGS
+  # ----------------------------------------------------------
+  # Used only when frequency = WEEKLY
   #daysOfWeek:
   #  - MONDAY
   #  - WEDNESDAY
   #  - FRIDAY
-    
-  # Only used for MONTHLY
+
+  # ----------------------------------------------------------
+  # MONTHLY MODE SETTINGS
+  # ----------------------------------------------------------
+  # Used only when frequency = MONTHLY
   #daysOfMonth:
-  # - 1
-  # - 29
+  #  - 1
+  #  - 15
+  #  - 29
 
-  # Only used for INTERVAL
-  # intervalMinutes: 60   # run every hour
-
-  # Only used for ONCE
+  # ----------------------------------------------------------
+  # ONE-TIME EXECUTION
+  # ----------------------------------------------------------
+  # Used only when frequency = ONCE
   #startDate: "2025-11-28"
 
-  # Recovery behavior if a run is missed or system was off
+  # ----------------------------------------------------------
+  # MISSED RUN RECOVERY POLICY
+  # ----------------------------------------------------------
+  # Defines behavior if a scheduled run was missed
+  # Possible values:
+  #   RUN_IMMEDIATELY | SKIP | WAIT_NEXT
   recoveryPolicy: RUN_IMMEDIATELY
+
+
+# ------------------------------------------------------------
+# FILE SELECTION SETTINGS
+# ------------------------------------------------------------
 files:
+
+  # Root paths to scan for backup
   sourcePaths:
     - "/home/gamma/test"
 
+  # Include patterns (glob syntax)
+  # If empty, all files are included
   includePatterns:
     - "*.*"
+
+  # Exclude patterns (glob syntax)
   excludePatterns:
     - "*.tmp"
     - "*/cache/*"
 
+  # Follow symbolic links during scan
   followSymlinks: false
+
+  # Recursively scan directories
   recursive: false
 
+
+# ------------------------------------------------------------
+# STORAGE SETTINGS
+# ------------------------------------------------------------
 storage:
-  type: LOCAL #SFTP # PARTITION CLOUD NFS
+
+  # Storage backend type
+  # Supported values:
+  #   LOCAL | SFTP | SMB | PARTITION | NFS | CLOUD
+  type: LOCAL
+
+  # ----------------------------------------------------------
+  # LOCAL STORAGE
+  # ----------------------------------------------------------
+  # Used when type = LOCAL
   path: "/home/gamma/backup"
+
+  # ----------------------------------------------------------
+  # SECURITY
+  # ----------------------------------------------------------
+  # Base64-encoded encryption key (AES)
   encryptionKey: "p8E4R4y3lQk0WJg+q5+F3HkGmA2pJv3g9v7zqJ1s9cc="
-  #share: "share for SMB"
-  #mountPoint: "/mnt/backup"
-  #passwordPath: "for SMB, SFTP(if not by private key)"
-  host: "localhost"  
-  user: "testuser"
+
+  # ----------------------------------------------------------
+  # REMOTE STORAGE (SFTP / SMB)
+  # ----------------------------------------------------------
+  # Used when type = SFTP or SMB
+  host: "localhost"
   port: 2222
+  user: "testuser"
+
+  # Path to file containing password
   passwordPath: "/home/gamma/password.txt"
-  #privateKeyPath: "/home/gamma/sftp/testuser/.ssh/sftp_id_rsa"
-  #passPhrase: "testt"
+
+  # Optional: private key authentication (SFTP)
+  #privateKeyPath: "/home/gamma/sftp/testuser/.ssh/id_rsa"
+  #passPhrase: "secret"
+
+  # Optional: SMB share settings
+  #share: "backup_share"
+  #mountPoint: "/mnt/backup"
+

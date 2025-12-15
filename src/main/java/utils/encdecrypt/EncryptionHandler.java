@@ -89,7 +89,7 @@ public final class EncryptionHandler implements Encryptable {
         FileUtils.ensureDir(destDir);
 
         String name = encryptedFile.getFileName().toString();
-        String outName = name.endsWith(".enc") ? name.substring(0, name.length() - 4) + ".dec" : name + ".dec";
+        String outName = name.endsWith(".enc") ? name.substring(0, name.length() - 4)  : name ;
         Path temp = FileUtils.tempFile(destDir, outName, ".tmp");
         Path target = destDir.resolve(outName);
 

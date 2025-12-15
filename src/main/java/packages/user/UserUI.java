@@ -29,6 +29,12 @@ public class UserUI {
         }
     }
 
+    public static String takeUsername() throws SQLException {
+        System.out.print("Enter username: ");
+        String username = input.nextLine();
+        return username;
+    }
+
 
     public static String receiveEmail() throws SQLException {
         while (true) {
@@ -43,10 +49,10 @@ public class UserUI {
         }
     }
 
-    public static String receivePassword() {
+    public static String receivePassword(String username) {
         while (true) {
             try {
-                System.out.print("Enter password: ");
+                System.out.print("Enter password for " + username + ":");
                 String password;
                 Console console = System.console();
                 if (console != null) {

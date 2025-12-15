@@ -10,7 +10,7 @@ public class BackupDaemon implements Runnable {
     private final BackupScheduler scheduler;
     private final BackupController controller;
 
-    private volatile boolean running = true;
+    private static volatile boolean running = true;
 
     public BackupDaemon(BackupScheduler scheduler, BackupController controller) {
         this.scheduler = scheduler;
@@ -19,46 +19,46 @@ public class BackupDaemon implements Runnable {
 
     @Override
     public void run() {
-        boolean done = false;
         try {
             while (running) {
-                
-                if (scheduler.isTime() && !done) {
 
-                    controller.runBackup();
-                    ConfigService.lastRun = ZonedDateTime.now(ConfigService.zone); 
-                    done = true;
-                } else {
-                    if (done){
-                        Thread.sleep(55000);
-                        System.out.println("Daemon is alive at " + java.time.LocalTime.now());
-                        done = false;
+                ZonedDateTime nextRun = ConfigService.getNextRuntime();
+                long sleepMillis = java.time.Duration
+                        .between(ZonedDateTime.now(ConfigService.zone), nextRun)
+                        .toMillis();
 
-                    }
-                    else {
-                        Thread.sleep(30000); 
-                        System.out.println("Daemon is alive at " + java.time.LocalTime.now());
-
-                    }
-
+                if (sleepMillis > 0) {
+                    Thread.sleep(sleepMillis);
                 }
+
+                if (!running) break;
+
+                controller.runBackup();
+                ConfigService.lastRun = ZonedDateTime.now(ConfigService.zone);
+
+                Logger.log(
+                    BackupScheduleConfigModel.Status.SUCCESS.name(),
+                    "backup",
+                    "Backup completed at " + ConfigService.lastRun
+                );
             }
-
-        } catch (InterruptedException ex) {
-
-            running = false;
-            Logger.log(BackupScheduleConfigModel.Status.FAILED.name(), "backup", ex.getMessage());
-            System.out.println("Error interrupted: " + ex);
-
-        } catch (Exception ex){
-            Logger.log(BackupScheduleConfigModel.Status.FAILED.name(), "backup", ex.getMessage());
-
-            System.out.println("Error: " + ex);
-
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Logger.log(
+                BackupScheduleConfigModel.Status.FAILED.name(),
+                "backup",
+                "Daemon interrupted"
+            );
+        } catch (Exception e) {
+            Logger.log(
+                BackupScheduleConfigModel.Status.FAILED.name(),
+                "backup",
+                e.getMessage()
+            );
         }
     }
 
-    public void stop() {
+    public static void stop() {
         running = false;
     }
 }

@@ -1,9 +1,9 @@
 package recovery;
 
 public class Recovery {
-    public static void recover() {
+    public static void recover(RecoveryModel.Type type) {
         try {
-            Recoveryable service = RecoveryServiceResolver.getService(RecoveryModel.Type.SELECTIVE);
+            Recoveryable service = RecoveryServiceResolver.getService(type);
             RecoveryController controller = new RecoveryController(service);
             controller.runRecovery();
 

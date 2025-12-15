@@ -11,7 +11,7 @@ import java.util.Objects;
 
 public class GzipCompressor implements Compressable {
 
-    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Override
     public Path compress(Path source, Path targetDir) throws IOException {
@@ -56,7 +56,13 @@ public class GzipCompressor implements Compressable {
         FileUtils.ensureDir(targetDir);
 
         String name = compressedFile.getFileName().toString();
-        String outName = name.endsWith(".gz") ? name.substring(0, name.length() - 3) : name + ".decompressed";
+        
+        int start = name.length() - 17;
+        String ts = name.substring(start, name.length() - 3);
+
+        String filename = name.endsWith(".gz") ? name.substring(0, name.length() - 18) : name;
+        String outName = ts + "_" + filename;
+
         Path temp = FileUtils.tempFile(targetDir, outName, ".tmp");
         Path target = targetDir.resolve(outName);
 

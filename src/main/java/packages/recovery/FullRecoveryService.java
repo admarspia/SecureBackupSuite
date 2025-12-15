@@ -20,76 +20,74 @@ import storage.LocalStorageReader;
 import storage.SFTPStorageReader;
 
 public class FullRecoveryService implements Recoveryable {
+    int workers = 3;
 
     @Override
     public void recover() throws Exception {
-        Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery/");
-        FileUtils.ensureDir(recoveryWorkspace);
 
-        StorageConfigModel conf = ConfigService.getConfig();
+        Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery/");
         Path downloadDir = Path.of("backup_workspace/temp/recovery_download/");
+
+        FileUtils.ensureDir(recoveryWorkspace);
         FileUtils.ensureDir(downloadDir);
 
-        String base64Key = conf.getEncryptionKey();
-        EncryptionHandler encryptionHandler = EncryptionHandler.fromBase64Key(base64Key);
-        EncryptionAdapter.setHandler(encryptionHandler);
+        StorageConfigModel conf = ConfigService.getConfig();
+
+        EncryptionHandler handler =
+            EncryptionHandler.fromBase64Key(conf.getEncryptionKey());
+        EncryptionAdapter.setHandler(handler);
 
         switch (conf.getType()) {
             case LOCAL:
             case EXTERNAL:
             case PARTITION:
-                LocalStorageReader localReader = new LocalStorageReader();
-                localReader.read(conf, downloadDir);
+                new LocalStorageReader().read(conf, downloadDir);
                 break;
-
             case SFTP:
-                SFTPStorageReader sftpReader = new SFTPStorageReader();
-                sftpReader.read(conf, downloadDir);
+                new SFTPStorageReader().read(conf, downloadDir);
                 break;
-
             default:
-                throw new UnsupportedOperationException("Unsupported storage type: " + conf.getType());
+                throw new UnsupportedOperationException(
+                        "Unsupported storage type: " + conf.getType());
         }
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(downloadDir, "*.enc")) {
-            for (Path encFile : stream) {
-                Queues.ENCRYPTED_QUEUE.put(encFile);
-                System.out.println("Queued encrypted file: " + encFile.getFileName());
+        try (DirectoryStream<Path> stream =
+                Files.newDirectoryStream(downloadDir, "*.enc")) {
+
+            for (Path enc : stream) {
+                Queues.ENCRYPTED_QUEUE.put(enc);
+                System.out.println("Queued encrypted file: " + enc.getFileName());
             }
-        }
+                }
 
         Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
 
-        DecryptorService decryptor = new DecryptorService(3);
+        DecryptorService decryptor = new DecryptorService(workers);
         decryptor.start();
 
-        while (true) {
-            Path encrypted = Queues.ENCRYPTED_QUEUE.take();
-            if (encrypted.equals(Queues.POISON)) {
-                Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
-                break;
+        Compressable decompressor = new GzipCompressor();
+
+        while (workers > 0) {
+            Path decrypted = Queues.DECRYPTED_QUEUE.take();
+
+            if (decrypted.equals(Queues.POISON)) {
+                workers--;
+                continue;
             }
-            Path decrypted = EncryptionAdapter.decrypt(encrypted);
-            Queues.DECRYPTED_QUEUE.put(decrypted);
+
+            decompressor.decompress(decrypted, recoveryWorkspace);
+            System.out.println("decompressed: " + decrypted.getFileName());
+
         }
 
         decryptor.stop();
 
-        Compressable decompressor = new GzipCompressor();
-        while (!Queues.DECRYPTED_QUEUE.isEmpty()) {
-            Path decrypted = Queues.DECRYPTED_QUEUE.take();
-            if (decrypted.equals(Queues.POISON)) {
-                System.out.println("reached poison.die");
-            };
-            decompressor.decompress(decrypted, recoveryWorkspace);
-        }
-
         System.out.println("Full recovery completed at " + recoveryWorkspace);
 
-
-        FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
         FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
-
+        FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+        FileUtils.cleanup(Path.of("backup_workspace/temp/recovery_download"));
     }
+
 }
 

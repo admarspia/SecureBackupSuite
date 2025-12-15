@@ -1,30 +1,25 @@
 {
-  "backupType" : "INCREMENTAL",
-  "timestamp" : "2025-12-13T01:36:20.845125452+03:00[Africa/Addis_Ababa]",
+  "backupType" : "FULL",
+  "timestamp" : "2025-12-15T01:30:56.834314226+03:00[Africa/Addis_Ababa]",
   "entries" : [ {
+    "original" : "file:///home/gamma/test/dayly.txt",
+    "hash" : "a702be62e28b0cf61a691b2721f4877ed0f1a456264b094109529c1f2097f332",
+    "originalSize" : 711,
+    "at" : "20251215001703"
+  }, {
     "original" : "file:///home/gamma/test/test.java",
-    "hash" : "c83f944d83e6ef4291ffdb59b0a66f1a70f93da0ebb5e554050d919fc679afe6",
-    "originalSize" : 416,
-    "at" : "20251211232834"
+    "hash" : "5ad69196a7c71aaff5edb340a6126db981562db5aeabda949701ff66d1f31f3c",
+    "originalSize" : 427,
+    "at" : "20251215013056"
   }, {
     "original" : "file:///home/gamma/test/mymath.o",
     "hash" : "941aa25cd5c84b737d21c6a412af553b64f6bddaa89efbd2c8fdb708422b7c0e",
     "originalSize" : 1336,
-    "at" : "20251211232834"
+    "at" : "20251215013056"
   }, {
     "original" : "file:///home/gamma/test/dayly.txt",
-    "hash" : "e5d26194ca75f6470ce4706069096cfefd959deec62eb2ab852f9664df81299e",
-    "originalSize" : 858,
-    "at" : "20251211232834"
-  }, {
-    "original" : "file:///home/gamma/test/dayly.txt",
-    "hash" : "4061cbbc737698b50a3d40fec585f7856ed6ed881d306295dc627ea02a518752",
-    "originalSize" : 780,
-    "at" : "20251213002522"
-  }, {
-    "original" : "file:///home/gamma/test/dayly.txt",
-    "hash" : "a702be62e28b0cf61a691b2721f4877ed0f1a456264b094109529c1f2097f332",
-    "originalSize" : 711,
-    "at" : "202512130135"
+    "hash" : "8971075fe0a4a5d19fd2e31b4083db7b7a312856b817c2a57eda38cf8305ece4",
+    "originalSize" : 700,
+    "at" : "20251215013057"
   } ]
 }

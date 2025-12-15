@@ -39,7 +39,7 @@ public class UserService {
     public void createNewUser() throws SQLException {
         user.setUsername(UserUI.receiveUsername());  
         user.setEmail(UserUI.receiveEmail());
-        user.setPassword(UserUI.receivePassword());
+        user.setPassword(UserUI.receivePassword(user.getUsername()));
 
         PreparedStatement pstmt = conn.prepareStatement(INSERT);
 
@@ -77,9 +77,10 @@ public class UserService {
         Logger.log("success", "userservice", "User created successfully.");
     }
 
-    public void userLoggin() throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException {
-        user.setUsername(UserUI.receiveUsername());
-        String rawPassword = UserUI.receivePassword(); 
+    public void userLoggin(String username) throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException {
+        user.setUsername(username);
+
+        String rawPassword = UserUI.receivePassword(user.getUsername()); 
 
         PreparedStatement pstmt = conn.prepareStatement(GETPASSWORD);
         pstmt.setString(1, user.getUsername());
@@ -255,8 +256,15 @@ public class UserService {
         Logger.log("success", "userservice", "Email changed successfully.");
     }
 
-    public void updatePassword()  throws SQLException , IOException {
-        user.setPassword(UserUI.receivePassword()); 
+    public void updatePassword()  throws SQLException , IOException, InvalidCredentialsException, UserNotFoundException {
+        String username = null;
+        if (SessionManager.who() == null){
+            username = UserUI.takeUsername();
+            this.userLoggin(username);
+            SessionManager.startSession(username);   
+        }
+
+        user.setPassword(UserUI.receivePassword(SessionManager.who())); 
 
         PreparedStatement pstmt = conn.prepareStatement(UPDATEPASSWORD);
         pstmt.setString(1, user.getPasswordHash());
