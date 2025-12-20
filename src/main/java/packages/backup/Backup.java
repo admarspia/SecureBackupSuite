@@ -18,7 +18,6 @@ public class Backup {
         Thread daemon = new Thread(new BackupDaemon(scheduler, controller));
         daemon.setDaemon(false); 
         daemon.start();
-        daemon.join();
 
         System.out.println("Backup daemon running...");
         } catch (Exception ex){

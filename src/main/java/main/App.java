@@ -137,12 +137,12 @@ public class App {
 
         ensureLogin();
 
-        Backupable service;
+        Backupable service = null;
 
         switch (args[1]) {
 
             case "full":
-                service = BackupServiceResolver.getService(
+                Backup.backup(
                         BackupModel.Type.FULL);
                 service.backup();
                 break;

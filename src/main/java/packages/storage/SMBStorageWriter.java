@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.io.IOException;
 
 public class SMBStorageWriter implements StorageWriter {
-
+    // implementetion on version 2 
     @Override
     public void write(StorageConfigModel config, Path file) throws IOException {
     }

@@ -21,6 +21,7 @@ import storage.LocalStorageReader;
 import storage.SFTPStorageReader;
 
 import user.UserUI;
+import utils.Logger;
 
 public class SelectiveRecoveryService implements Recoveryable {
 
@@ -36,7 +37,7 @@ public class SelectiveRecoveryService implements Recoveryable {
     @Override
     public void recover() throws Exception {
 
-        UserUI.receiveTargetFilename();
+        //UserUI.receiveTargetFilename();
 
         Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery_selective/");
         FileUtils.ensureDir(recoveryWorkspace);
@@ -103,6 +104,8 @@ public class SelectiveRecoveryService implements Recoveryable {
         System.out.println("Temporary directories cleaned up.");
 
         System.out.println("Selective recovery completed at " + recoveryWorkspace);
+        Logger.log("SUCCESS", "recovery", "recovery completed successfuly.");
+
     }
 }
 

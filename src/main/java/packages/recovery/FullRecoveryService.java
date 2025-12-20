@@ -18,6 +18,7 @@ import config.user_config.storage_config.ConfigService;
 
 import storage.LocalStorageReader;
 import storage.SFTPStorageReader;
+import utils.Logger;
 
 public class FullRecoveryService implements Recoveryable {
     int workers = 3;
@@ -87,6 +88,7 @@ public class FullRecoveryService implements Recoveryable {
         FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
         FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
         FileUtils.cleanup(Path.of("backup_workspace/temp/recovery_download"));
+        Logger.log("SUCCESS", "recovery", "recovery completed successfuly.");
     }
 
 }

@@ -53,7 +53,6 @@ public class Help {
                 ------------------------------------------------------------
                 • Local filesystem
                 • External / mounted devices
-                • SMB network shares
                 • SFTP remote servers
 
                 ------------------------------------------------------------
@@ -64,6 +63,7 @@ public class Help {
                 • Password-based key derivation
                 • Manifest-based recovery
 
+        Welcome.display();
                 ------------------------------------------------------------
                 WORKSPACE LAYOUT
                 ------------------------------------------------------------
@@ -89,13 +89,6 @@ public class Help {
                 backup status
 
                 ------------------------------------------------------------
-                EXIT CODES
-                ------------------------------------------------------------
-                0   Success
-                1   Configuration or user error
-                2   I/O or storage failure
-                3   Cryptographic or integrity failure
-
                 ============================================================
                 """
                 );

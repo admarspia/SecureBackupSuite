@@ -1,0 +1,4108 @@
+src/main/java/packages/notification/NotificationService.java
+src/main/java/packages/notification/NotificationController.java
+src/main/java/packages/notification/Notification.java
+src/main/java/packages/user/UserUI.java
+package user;
+
+import java.util.Scanner;
+import java.util.Map;
+import java.util.HashMap;
+import java.io.*;
+import java.sql.SQLException;
+
+import exception.userservice.*;
+import utils.manifest.ManifestDisplay;
+import recovery.SelectiveRecoveryService;
+
+public class UserUI {
+    private static Scanner input = new Scanner(System.in);
+    private static Map<String, String> selected = new HashMap<>();
+
+    public static String receiveUsername() throws SQLException {
+        while (true) {
+            try {
+
+                System.out.print("Enter username: ");
+                String username = input.nextLine();
+                System.out.println("After taking input");
+                UserController.validateUsername(username);
+                return username;
+            } catch (InvalidUsernameException | UsernameExistsException ex){
+                System.out.println(ex.getMessage());
+            }
+        }
+    }
+
+    public static String takeUsername() throws SQLException {
+        System.out.print("Enter username: ");
+        String username = input.nextLine();
+        return username;
+    }
+
+
+    public static String receiveEmail() throws SQLException {
+        while (true) {
+            try {
+                System.out.print("Enter email: ");
+                String email = input.nextLine();
+                UserController.validateEmail(email);
+                return email;
+            } catch (InvalidEmailFormatException | EmailExistsException ex){
+                System.out.println(ex.getMessage());
+            }
+        }
+    }
+
+    public static String receivePassword(String username) {
+        while (true) {
+            try {
+                System.out.print("Enter password for " + username + ":");
+                String password;
+                Console console = System.console();
+                if (console != null) {
+                    char[] pw = console.readPassword();
+                    password = new String(pw);
+                } else {
+                    password = input.nextLine();
+                }
+                UserController.validatePassword(password);
+                return password;
+            } catch (InvalidPasswordException ex){
+                System.out.println(ex.getMessage());
+            }
+        }
+    }
+
+    public static void receiveTargetFilename(){
+        ManifestDisplay.display();
+        
+        while (true){
+            System.out.print("Enter file name to recover: ");
+            String filename;
+            filename = input.nextLine();
+            System.out.print("Enter timestamp: ");
+            String at = input.nextLine();
+
+            selected.put(filename, at);
+            String confirm;
+
+            System.out.print("More files?y/n: ");
+            confirm = input.nextLine();
+
+            if (confirm.equals("y") || confirm.equals("Y"))
+                continue;
+            else break;
+
+        }
+
+        SelectiveRecoveryService.setTarget(selected);
+
+    }
+
+
+
+}
+
+src/main/java/packages/user/UserController.java
+package user;
+
+import exception.userservice.*;
+import utils.Logger;
+import java.sql.SQLException;
+
+
+public class UserController {
+    private static UserService userService;
+
+    static { // bc static runs when the class is loadded.
+        try {
+            userService = new UserService();
+        } catch ( SQLException ex){
+            ex.printStackTrace();
+            throw new RuntimeException("Failed to Initialize UserService.");
+        }
+    }
+
+    public static void validateCredentials( boolean matched ) throws InvalidCredentialsException {
+        try {
+            if (!matched) throw new InvalidCredentialsException();
+
+        } catch ( InvalidCredentialsException ex) {
+            Logger.log("Error", "userservice", ex.toString());
+            throw ex;
+        }
+
+    }
+
+    public static void validateUsername( String username) throws InvalidUsernameException, SQLException, UsernameExistsException {
+        try {
+            if (username == null || username.length() < 3 || username.length() > 30) 
+                throw new InvalidUsernameException();
+
+            if (userService.getUser(username) != null)
+                throw new UsernameExistsException();
+
+        } catch (InvalidUsernameException  ex){
+                Logger.log("Error", "userservice", ex.toString());
+                throw ex;
+        } catch (UsernameExistsException ex){
+            Logger.log("Error", "userservice", ex.toString());
+            throw ex;
+        }
+
+    }
+
+    public static void validateEmail( String email ) throws InvalidEmailFormatException, SQLException, EmailExistsException {
+        try {
+            String emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$";
+
+            if (!email.matches(emailPattern)) 
+                throw new InvalidEmailFormatException();
+
+            if (userService.getUserByEmail(email) != null)
+                throw new EmailExistsException();
+
+
+        }catch (InvalidEmailFormatException ex) {
+            Logger.log("Error", "userservice", ex.toString());
+            throw ex;
+        }catch (EmailExistsException ex){
+            Logger.log("Error", "userservice", ex.toString());
+            throw ex;
+        }
+
+    }
+
+    public static void validatePassword( String password ) throws InvalidPasswordException {
+        try  {
+            if (password == null || password.length() < 8 || password.length() > 256 )
+                throw new InvalidPasswordException();
+
+        } catch (InvalidPasswordException ex){
+                Logger.log("Error", "userservice", ex.toString());
+                throw ex;
+
+        }
+
+    }
+ 
+}
+src/main/java/packages/user/UserService.java
+package user;
+
+import exception.userservice.*;
+import java.sql.*;
+import config.DbConfig;
+import utils.*;
+import java.io.IOException;
+
+
+public class UserService {
+    private UserModel user;
+    private Connection conn;
+    
+    private static final String CREATE = "CREATE TABLE IF NOT EXISTS users( username TEXT PRIMARY KEY, email TEXT, passwordHash TEXT);";
+    private static final String INSERT = "INSERT INTO users(username, email, passwordHash) VALUES (? , ?, ?);";
+    private static final String DELETE = "DELETE FROM users WHERE username = ?;";
+    private static final String GETPASSWORD = "SELECT passwordHash FROM users WHERE username = ?;";
+    private static final String GETEMAIL = "SELECT email FROM users WHERE username = ?;";
+    private static final String GETUSER = "SELECT * FROM users WHERE username = ?;";
+    private static final String GETUSERBYEMAIL = "SELECT * FROM users WHERE email = ?;";
+
+    private static final String UPDATEUSERNAME = "UPDATE users SET username = ? WHERE username = ?;";
+    private static final String UPDATEEMAIL = "UPDATE users SET email = ? WHERE username = ?;";
+    private static final String UPDATEPASSWORD = "UPDATE users  SET passwordHash = ? WHERE username = ? ;";
+
+
+    public UserService() throws SQLException {
+        user = new UserModel();
+        conn = DbConfig.getConnection("jdbc:sqlite:backup_system.db");
+        Statement stmt = conn.createStatement();
+
+
+
+        stmt.execute(CREATE);
+        stmt.close();
+
+     }
+
+    public void createNewUser() throws SQLException {
+        user.setUsername(UserUI.receiveUsername());  
+        user.setEmail(UserUI.receiveEmail());
+        user.setPassword(UserUI.receivePassword(user.getUsername()));
+
+        PreparedStatement pstmt = conn.prepareStatement(INSERT);
+
+        pstmt.setString(1,user.getUsername());
+        pstmt.setString(2, user.getEmail());
+        pstmt.setString(3, user.getPasswordHash());
+
+        pstmt.executeUpdate();
+        pstmt.close();
+
+        Logger.log("success", "userservice", "User created successfully.");
+    }
+    // added for automated testing
+
+    public void createNewUser(String username, String email, String password) throws SQLException, InvalidUsernameException, InvalidEmailFormatException, InvalidPasswordException, UsernameExistsException, EmailExistsException {
+
+        UserController.validateUsername(username);
+        UserController.validateEmail(email);
+        UserController.validatePassword(password);
+
+        user.setUsername(username);  
+        user.setEmail(email);
+        user.setPassword(password);
+
+
+        PreparedStatement pstmt = conn.prepareStatement(INSERT);
+
+        pstmt.setString(1,user.getUsername());
+        pstmt.setString(2, user.getEmail());
+        pstmt.setString(3, user.getPasswordHash());
+
+        pstmt.executeUpdate();
+        pstmt.close();
+
+        Logger.log("success", "userservice", "User created successfully.");
+    }
+
+    public void userLoggin(String username) throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException {
+        user.setUsername(username);
+
+        String rawPassword = UserUI.receivePassword(user.getUsername()); 
+
+        PreparedStatement pstmt = conn.prepareStatement(GETPASSWORD);
+        pstmt.setString(1, user.getUsername());
+
+        ResultSet rs = pstmt.executeQuery();
+
+        if (!rs.next()) throw new UserNotFoundException();
+
+        boolean matched = EncryptionUtils.verifyPassword(rawPassword, rs.getString("passwordHash"));
+
+        rs.close();
+        pstmt.close();
+
+
+        UserController.validateCredentials(matched);
+            
+        Logger.log("success", "userservice", "login successfull.");
+        SessionManager.startSession(user.getUsername());   
+    }
+
+    // overloaded login method for testing
+
+    public void userLoggin(String username, String password) 
+        throws  SQLException, UserNotFoundException,  InvalidCredentialsException, IOException 
+    {
+        user.setUsername(username);
+        String rawPassword = password; 
+
+        PreparedStatement pstmt = conn.prepareStatement(GETPASSWORD);
+        pstmt.setString(1, user.getUsername());
+
+        ResultSet rs = pstmt.executeQuery();
+
+        if (!rs.next()) throw new UserNotFoundException();
+
+        boolean matched = EncryptionUtils.verifyPassword(rawPassword, rs.getString("passwordHash"));
+
+        rs.close();
+        pstmt.close();
+
+
+        UserController.validateCredentials(matched);
+            
+        Logger.log("success", "userservice", "login successfull.");
+        SessionManager.startSession(user.getUsername());   
+
+    }
+
+
+    public  UserModel getUser( String username ) throws SQLException {
+        UserModel user = new UserModel();
+        PreparedStatement pstmt = conn.prepareStatement(GETUSER);
+        pstmt.setString(1, username);
+
+        ResultSet rs = pstmt.executeQuery();
+
+        if (!rs.next()) return null;
+        else {
+            user.setUsername(rs.getString("username"));
+            user.setEmail(rs.getString("email"));
+            user.setPasswordHash(rs.getString("passwordHash"));
+
+            pstmt.close();
+            rs.close();
+            
+            // added for test.
+            System.out.println(user.getUsername() + " " + user.getEmail() + " " + user.getPasswordHash() + " ");
+
+            return user;
+        }
+
+    }
+
+
+
+    public UserModel getUserByEmail( String email )  throws SQLException  {
+        UserModel user = new UserModel();
+        PreparedStatement pstmt = conn.prepareStatement(GETUSERBYEMAIL);
+        pstmt.setString(1, email);
+
+        ResultSet rs = pstmt.executeQuery();
+
+        if (!rs.next()) return null;
+        else {
+            user.setUsername(rs.getString("username"));
+            user.setEmail(rs.getString("email"));
+            user.setPasswordHash(rs.getString("passwordHash"));
+
+            pstmt.close();
+            rs.close();
+           
+            // for testing
+            System.out.println(user.getUsername() + " " + user.getEmail() + " " + user.getPasswordHash() + " ");
+
+            return user;
+        }
+
+
+    }
+
+    public void removeUser() throws SQLException, UserNotFoundException, IOException {
+       String username;
+       username = SessionManager.who();
+       if (username == null) throw new UserNotFoundException();
+
+       PreparedStatement pstmt = conn.prepareStatement(DELETE);
+       pstmt.setString(1, username);
+       pstmt.executeUpdate();
+       
+       pstmt.close();
+       SessionManager.endSession();
+        
+       Logger.log("success", "userservice", "User Deleted successfully.");
+
+    }
+        
+
+    public void updateUsername()  throws SQLException, IOException  {
+        user.setUsername(UserUI.receiveUsername()); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEUSERNAME);
+
+        pstmt.setString(1, user.getUsername());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Username changed successfully.");
+    }
+
+    // overloaded updateUsername  method for testing
+    //
+    public void updateUsername( String username )  throws SQLException, IOException  {
+        user.setUsername( username ); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEUSERNAME);
+
+        pstmt.setString(1, user.getUsername());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Username changed successfully.");
+    }
+
+
+
+    public void updateEmail()  throws SQLException, IOException {
+        user.setEmail(UserUI.receiveEmail()); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEEMAIL);
+        pstmt.setString(1, user.getEmail());
+        pstmt.setString(2, SessionManager.who());
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Email changed successfully.");
+    }
+
+    // overloaded updateEmail method for testing
+
+    public void updateEmail(String email)  throws SQLException, IOException {
+        user.setEmail(email); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEEMAIL);
+        pstmt.setString(1, user.getEmail());
+        pstmt.setString(2, SessionManager.who());
+        pstmt.executeUpdate();
+        
+        pstmt.close();
+        Logger.log("success", "userservice", "Email changed successfully.");
+    }
+
+    public void updatePassword()  throws SQLException , IOException, InvalidCredentialsException, UserNotFoundException {
+        String username = null;
+        if (SessionManager.who() == null){
+            username = UserUI.takeUsername();
+            this.userLoggin(username);
+            SessionManager.startSession(username);   
+        }
+
+        user.setPassword(UserUI.receivePassword(SessionManager.who())); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEPASSWORD);
+        pstmt.setString(1, user.getPasswordHash());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+
+        pstmt.close();
+        Logger.log("success", "userservice", "password changed successfully.");
+    }
+    
+    // overloaded updatePassword method for testing
+
+    public void updatePassword( String password )  throws SQLException , IOException {
+        user.setPassword(password); 
+
+        PreparedStatement pstmt = conn.prepareStatement(UPDATEPASSWORD);
+        pstmt.setString(1, user.getPasswordHash());
+        pstmt.setString(2, SessionManager.who());
+
+        pstmt.executeUpdate();
+
+        pstmt.close();
+        Logger.log("success", "userservice", "password changed successfully.");
+    }
+
+
+    public void logout() throws IOException {
+        SessionManager.endSession();
+        Logger.log("success", "userservice", "user Logged out successfully.");
+
+    }
+
+
+}
+src/main/java/packages/user/UserModel.java
+package user;
+
+import exception.userservice.*;
+import utils.EncryptionUtils;
+
+public class UserModel {
+    private String username;
+    private String email;
+    private String passwordHash;
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setEmail(String email)  {
+            this.email = email;
+
+    }
+
+    public void setPassword( String password) { 
+        this.passwordHash = EncryptionUtils.hashPassword(password);
+
+    }
+    public void setPasswordHash(String hashedPassword){
+        this.passwordHash = hashedPassword;
+
+    }
+
+    public String getUsername(){
+        return this.username;
+
+    }
+
+    public String getEmail(){
+        return this.email;
+
+    }
+
+    public String getPasswordHash(){
+        return this.passwordHash;
+    }
+
+}
+src/main/java/packages/monitoring/MonitoringService.java
+src/main/java/packages/monitoring/MonitoringController.java
+src/main/java/packages/monitoring/MonitoringLog.java
+src/main/java/packages/storage/StorageManager.java
+package storage;
+
+import java.nio.file.Path;
+import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import utils.Queues;
+import config.user_config.storage_config.StorageConfigModel;
+import utils.Logger;
+
+public class StorageManager {
+    public static  int workerCount;
+    private final ExecutorService workers;
+    private final StorageWriter writer;
+    private final StorageConfigModel config;
+    private boolean running = false;
+
+    public StorageManager(StorageWriter writer, StorageConfigModel config, int threads) {
+        this.writer = writer;
+        this.workerCount = threads;
+        this.workers = Executors.newFixedThreadPool(workerCount);
+        this.config =  config;
+    }
+
+    public void start() {
+        for (int i = 0; i < workerCount; i++) {
+            workers.submit(() -> {
+                try {
+                    while (true) {
+                        Path encrypted = Queues.ENCRYPTED_QUEUE.take();
+                        if (encrypted.equals(Queues.POISON)) break;
+                        writer.write(config, encrypted);
+                        System.out.println(encrypted.getFileName() + " written");
+                    }
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } catch (IOException e) {
+                    Logger.log("ERROR", "storage", e.getMessage());
+                }
+            });
+        }
+    }
+
+    public void stop() throws InterruptedException {
+        workers.shutdown();
+        workers.awaitTermination(1, TimeUnit.HOURS);
+    }
+
+}
+
+src/main/java/packages/storage/CloudStorageWriter.java
+src/main/java/packages/storage/SFTPStorageWriter.java
+package storage;
+
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.SftpException;
+
+import java.io.IOException;
+import java.nio.file.Path;
+
+import config.user_config.storage_config.StorageConfigModel;
+import utils.connection.SFTPConnectionHandler;
+import exception.connection.ConnectionTestException;
+
+public class SFTPStorageWriter implements StorageWriter {
+
+    @Override
+    public void write(StorageConfigModel config, Path encryptedFile) throws IOException {
+        Session session = null;
+        ChannelSftp sftp = null;
+
+        try {
+            session = createSession(config);
+            System.out.println("seession created");
+            try {
+            sftp = (ChannelSftp) session.openChannel("sftp");
+            
+            sftp.connect();
+
+            } catch (Exception ex){
+                System.out.println("Failed to open channel: " + ex );
+                throw ex;
+            }
+            System.out.println("channel opened");
+            String remoteDir = config.getPath(); 
+            ensureRemoteDirectory(remoteDir, sftp);
+
+            String remoteFile = remoteDir + "/" + encryptedFile.getFileName().toString();
+
+            sftp.put(encryptedFile.toString(), remoteFile, ChannelSftp.OVERWRITE);
+            System.out.println("Uploaded: " + remoteFile);
+
+        } catch (Exception ex) {
+            System.out.println("SFTP upload error: " + ex);
+            throw new RuntimeException("Failed to upload via SFTP: " + ex, ex);
+
+        } finally {
+            if (sftp != null && sftp.isConnected()) sftp.disconnect();
+            if (session != null && session.isConnected()) session.disconnect();
+        }
+    }
+
+    private Session createSession(StorageConfigModel config) throws ConnectionTestException, IOException {
+        if (config.getPasswordPath() != null) {
+            String pwd = utils.connection.helpers.CredentialUtils.readPasswordPath(config.getPasswordPath());
+            return SFTPConnectionHandler.getSessionByPassword(
+                    config.getUser(), config.getHost(), config.getPort(), pwd
+            );
+        } else {
+            return SFTPConnectionHandler.getSessionByPrivateKeyPassKey(
+                    config.getUser(),
+                    config.getHost(),
+                    config.getPrivateKeyPath(),
+                    config.getPassPhrase(),
+                    config.getPort()
+            );
+        }
+    }
+
+    private void ensureRemoteDirectory(String remoteDir, ChannelSftp sftp) throws SftpException {
+        String[] parts = remoteDir.split("/");
+        String current = "";
+        for (String p : parts) {
+            if (p.isBlank()) continue;
+            current += "/" + p;
+            try {
+                sftp.cd(current);
+            } catch (SftpException ex) {
+                sftp.mkdir(current);
+            }
+        }
+    }
+}
+
+src/main/java/packages/storage/StorageWriter.java
+package storage;
+
+import java.nio.file.Path;
+import java.io.IOException;
+import config.user_config.storage_config.StorageConfigModel;
+
+public interface StorageWriter{
+    void write(StorageConfigModel Location, Path path) throws IOException;
+}
+src/main/java/packages/storage/MountedDeviceWriter.java
+package storage;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.IOException;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+public class MountedDeviceWriter implements StorageWriter{
+    public void write(StorageConfigModel config, Path encrypted) throws IOException {
+        Path destDir = Path.of(config.getMountPoint());
+
+        Files.createDirectories(destDir);
+
+        Path destFile = destDir.resolve(encrypted.getFileName());
+
+        try (var in = Files.newInputStream(encrypted);
+             var out = Files.newOutputStream(destFile)) {
+            in.transferTo(out);
+            System.out.println("Written: " + destFile);
+        }
+    }
+    
+}
+src/main/java/packages/storage/SFTPStorageReader.java
+package storage;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.util.Vector;
+
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.SftpException;
+
+import config.user_config.storage_config.StorageConfigModel;
+import utils.Queues;
+import utils.connection.SFTPConnectionHandler;
+import exception.connection.ConnectionTestException;
+import utils.connection.helpers.CredentialUtils;
+
+public class SFTPStorageReader implements StorageReader {
+
+    @Override
+    public void read(StorageConfigModel config, Path downloadDir) throws IOException, InterruptedException {
+        Files.createDirectories(downloadDir);
+
+        Session session = null;
+        ChannelSftp sftp = null;
+
+        try {
+            session = createSession(config);
+            sftp = (ChannelSftp) session.openChannel("sftp");
+            sftp.connect();
+
+            String remoteDir = config.getPath();
+            Vector<ChannelSftp.LsEntry> entries = sftp.ls(remoteDir);
+
+            for (ChannelSftp.LsEntry entry : entries) {
+                String name = entry.getFilename();
+                if (name.equals(".") || name.equals("..") || !name.endsWith(".enc")) continue;
+
+                Path localFile = downloadDir.resolve(name);
+                sftp.get(remoteDir + "/" + name, localFile.toString());
+                Queues.ENCRYPTED_QUEUE.put(localFile);
+                System.out.println("SFTP file queued: " + localFile.getFileName());
+            }
+
+        } catch (Exception ex) {
+            throw new IOException("SFTP read failed: " + ex, ex);
+
+        } finally {
+            if (sftp != null && sftp.isConnected()) sftp.disconnect();
+            if (session != null && session.isConnected()) session.disconnect();
+        }
+
+        Queues.ENCRYPTED_QUEUE.put(Queues.POISON); 
+    }
+
+    private Session createSession(StorageConfigModel config) throws ConnectionTestException, IOException {
+        if (config.getPasswordPath() != null) {
+            String pwd = CredentialUtils.readPasswordPath(config.getPasswordPath());
+            return SFTPConnectionHandler.getSessionByPassword(
+                    config.getUser(), config.getHost(), config.getPort(), pwd
+            );
+        } else {
+            return SFTPConnectionHandler.getSessionByPrivateKeyPassKey(
+                    config.getUser(),
+                    config.getHost(),
+                    config.getPrivateKeyPath(),
+                    config.getPassPhrase(),
+                    config.getPort()
+            );
+        }
+    }
+}
+
+src/main/java/packages/storage/NFSStorageWriter.java
+src/main/java/packages/storage/LocalStorageReader.java
+package storage;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.DirectoryStream;
+import java.io.IOException;
+
+import config.user_config.storage_config.StorageConfigModel;
+import utils.Queues;
+
+public class LocalStorageReader implements StorageReader {
+
+    @Override
+    public void read(StorageConfigModel config, Path downloadDir) throws IOException, InterruptedException {
+        Path sourceDir = Path.of(config.getPath());
+        if (!Files.exists(sourceDir) || !Files.isDirectory(sourceDir)) {
+            throw new IOException("Local backup directory does not exist: " + sourceDir);
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(sourceDir, "*.enc")) {
+            for (Path file : stream) {
+                Path target = downloadDir.resolve(file.getFileName());
+                Files.copy(file, target);
+                Queues.ENCRYPTED_QUEUE.put(target);
+                System.out.println("Local file queued: " + target.getFileName());
+            }
+        }
+
+        Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
+    }
+}
+
+src/main/java/packages/storage/SMBStorageWriter.java
+package storage;
+
+
+
+import config.user_config.storage_config.StorageConfigModel;
+import java.nio.file.Path;
+import java.io.IOException;
+
+public class SMBStorageWriter implements StorageWriter {
+
+    @Override
+    public void write(StorageConfigModel config, Path file) throws IOException {
+    }
+}
+
+src/main/java/packages/storage/StorageReader.java
+package storage;
+
+import java.io.IOException;
+import java.nio.file.Path;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+public interface StorageReader {
+    void read(StorageConfigModel config, Path downloadDir) throws IOException, InterruptedException ;
+}
+src/main/java/packages/storage/LocalStorageWriter.java
+package storage;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.IOException;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+
+public class LocalStorageWriter implements StorageWriter {
+    @Override
+    public void write(StorageConfigModel config, Path encrypted) throws IOException {
+        Path destDir = Path.of(config.getPath());
+
+        Files.createDirectories(destDir);
+
+        Path destFile = destDir.resolve(encrypted.getFileName());
+
+        try (var in = Files.newInputStream(encrypted);
+             var out = Files.newOutputStream(destFile)) {
+            in.transferTo(out);
+            System.out.println("Written: " + destFile);
+        }
+    }
+}
+
+src/main/java/packages/recovery/FullRecoveryService.java
+package recovery;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.DirectoryStream;
+import java.io.IOException;
+
+import utils.compdecomp.FileUtils;
+import utils.compdecomp.Compressable;
+import utils.compdecomp.GzipCompressor;
+import utils.encdecrypt.EncryptionAdapter;
+import utils.encdecrypt.EncryptionHandler;
+import utils.encdecrypt.DecryptorService;
+import utils.Queues;
+
+import config.user_config.storage_config.StorageConfigModel;
+import config.user_config.storage_config.ConfigService;
+
+import storage.LocalStorageReader;
+import storage.SFTPStorageReader;
+
+public class FullRecoveryService implements Recoveryable {
+    int workers = 3;
+
+    @Override
+    public void recover() throws Exception {
+
+        Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery/");
+        Path downloadDir = Path.of("backup_workspace/temp/recovery_download/");
+
+        FileUtils.ensureDir(recoveryWorkspace);
+        FileUtils.ensureDir(downloadDir);
+
+        StorageConfigModel conf = ConfigService.getConfig();
+
+        EncryptionHandler handler =
+            EncryptionHandler.fromBase64Key(conf.getEncryptionKey());
+        EncryptionAdapter.setHandler(handler);
+
+        switch (conf.getType()) {
+            case LOCAL:
+            case EXTERNAL:
+            case PARTITION:
+                new LocalStorageReader().read(conf, downloadDir);
+                break;
+            case SFTP:
+                new SFTPStorageReader().read(conf, downloadDir);
+                break;
+            default:
+                throw new UnsupportedOperationException(
+                        "Unsupported storage type: " + conf.getType());
+        }
+
+        try (DirectoryStream<Path> stream =
+                Files.newDirectoryStream(downloadDir, "*.enc")) {
+
+            for (Path enc : stream) {
+                Queues.ENCRYPTED_QUEUE.put(enc);
+                System.out.println("Queued encrypted file: " + enc.getFileName());
+            }
+                }
+
+        Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
+
+        DecryptorService decryptor = new DecryptorService(workers);
+        decryptor.start();
+
+        Compressable decompressor = new GzipCompressor();
+
+        while (workers > 0) {
+            Path decrypted = Queues.DECRYPTED_QUEUE.take();
+
+            if (decrypted.equals(Queues.POISON)) {
+                workers--;
+                continue;
+            }
+
+            decompressor.decompress(decrypted, recoveryWorkspace);
+            System.out.println("decompressed: " + decrypted.getFileName());
+
+        }
+
+        decryptor.stop();
+
+        System.out.println("Full recovery completed at " + recoveryWorkspace);
+
+        FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
+        FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+        FileUtils.cleanup(Path.of("backup_workspace/temp/recovery_download"));
+    }
+
+}
+
+src/main/java/packages/recovery/RecoveryController.java
+package recovery;
+
+public class RecoveryController<T extends Recoveryable> {
+
+    private final T recoveryService;
+
+    public RecoveryController(T recoveryService) {
+        this.recoveryService = recoveryService;
+    }
+
+    public void runRecovery() throws Exception {
+        try {
+            recoveryService.recover();
+        } catch (Exception ex) {
+            throw ex;
+        }
+    }
+}
+
+src/main/java/packages/recovery/Recovery.java
+package recovery;
+
+public class Recovery {
+    public static void recover(RecoveryModel.Type type) {
+        try {
+            Recoveryable service = RecoveryServiceResolver.getService(type);
+            RecoveryController controller = new RecoveryController(service);
+            controller.runRecovery();
+
+            System.out.println("Recovery daemon running...");
+        } catch (Exception ex) {
+            System.out.println("Error: " + ex);
+        }
+    }
+}
+
+src/main/java/packages/recovery/SelectiveRecoveryService.java
+package recovery;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+import utils.compdecomp.FileUtils;
+import utils.compdecomp.Compressable;
+import utils.compdecomp.GzipCompressor;
+import utils.encdecrypt.EncryptionAdapter;
+import utils.encdecrypt.EncryptionHandler;
+
+import config.user_config.storage_config.StorageConfigModel;
+import config.user_config.storage_config.ConfigService;
+
+import storage.LocalStorageReader;
+import storage.SFTPStorageReader;
+
+import user.UserUI;
+
+public class SelectiveRecoveryService implements Recoveryable {
+
+    private static Map<String, String> target = new HashMap<>();
+
+
+    public static void setTarget(Map<String, String> t) {
+        target.clear();
+        target.putAll(t);
+    }
+
+
+    @Override
+    public void recover() throws Exception {
+
+        UserUI.receiveTargetFilename();
+
+        Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery_selective/");
+        FileUtils.ensureDir(recoveryWorkspace);
+
+        StorageConfigModel conf = ConfigService.getConfig();
+        Path downloadDir = Path.of("backup_workspace/temp/recovery_download/");
+
+        FileUtils.ensureDir(downloadDir);
+
+        String base64Key = conf.getEncryptionKey();
+        EncryptionHandler encryptionHandler = EncryptionHandler.fromBase64Key(base64Key);
+        EncryptionAdapter.setHandler(encryptionHandler);
+
+        switch (conf.getType()) {
+            case LOCAL, EXTERNAL, PARTITION -> new LocalStorageReader().read(conf, downloadDir);
+            case SFTP -> new SFTPStorageReader().read(conf, downloadDir);
+            default -> throw new UnsupportedOperationException("Unsupported storage type: " + conf.getType());
+        }
+
+        List<Path> filesToRecover = new ArrayList<>();
+
+        for (Map.Entry<String, String> entry : target.entrySet()) {
+            String targetFilename = entry.getKey();
+            String targetTimestamp = entry.getValue();
+
+            for (Path file : Files.list(downloadDir).toList()) {
+                String filename = file.getFileName().toString();
+
+                if (
+                    filename.startsWith(targetFilename + "_") &&
+                    filename.endsWith(".gz.enc") &&
+                    filename.contains(targetTimestamp)
+                ) {
+                    filesToRecover.add(file);
+                    System.out.println("Matched encrypted file: " + filename);
+                }
+            }
+        }
+
+        if (filesToRecover.isEmpty()) {
+            System.out.println("No matching files found for selective recovery.");
+            return;
+        }
+
+        List<Path> decryptedFiles = new ArrayList<>();
+
+        try {
+            for (Path encFile : filesToRecover) {
+                Path decrypted = EncryptionAdapter.decrypt(encFile);
+                decryptedFiles.add(decrypted);
+                System.out.println("File decrypted: " + decrypted.getFileName());
+            }
+
+            Compressable decompressor = new GzipCompressor();
+            for (Path decrypted : decryptedFiles) {
+                decompressor.decompress(decrypted, recoveryWorkspace);
+                System.out.println("Decompressed: " + decrypted.getFileName());
+            }
+        } finally {
+            FileUtils.cleanup(downloadDir);
+
+        }
+
+        System.out.println("Temporary directories cleaned up.");
+
+        System.out.println("Selective recovery completed at " + recoveryWorkspace);
+    }
+}
+
+src/main/java/packages/recovery/RecoveryModel.java
+package recovery;
+
+public class RecoveryModel {
+    public enum Type {FULL, SELECTIVE}
+    private Type type;
+
+    public void setType(Type type) { this.type = type; }
+    public Type getType() { return type; }
+}
+
+src/main/java/packages/recovery/Recoveryable.java
+package recovery;
+
+public interface Recoveryable {
+    void recover() throws Exception;
+}
+
+src/main/java/packages/recovery/RecoveryServiceResolver.java
+package recovery;
+
+public class RecoveryServiceResolver {
+
+    public static Recoveryable getService(RecoveryModel.Type type) throws Exception {
+        switch (type) {
+            case FULL:
+                return new FullRecoveryService();
+            case SELECTIVE:
+                return new SelectiveRecoveryService();
+            default:
+                throw new UnsupportedOperationException("Unsupported Operation: " + type);
+        }
+    }
+}
+
+src/main/java/packages/backup/BackupController.java
+package backup;
+
+
+public class BackupController<T extends Backupable> {
+
+    private final T backupService;
+
+    public BackupController(T backupService) {
+        this.backupService = backupService;
+    }
+
+    public void runBackup() throws Exception {
+        try {
+        backupService.backup();
+        } catch (Exception ex) {
+            throw ex;
+        }
+    }
+}
+
+src/main/java/packages/backup/BackupScheduler.java
+package backup;
+
+import java.time.*;
+
+import config.user_config.schedule_config.*;
+
+public class BackupScheduler {
+
+    public boolean isTime() throws Exception {
+        try {
+            BackupScheduleConfigModel.Frequency freq = ConfigService.getFrequency();
+
+            ZonedDateTime nextRun = ConfigService.getNextRuntime();
+            ZonedDateTime now = ZonedDateTime.now(nextRun.getZone()); 
+            System.out.println("now: " + now + "\tnext" + nextRun);
+            // same zone
+
+            switch (freq) {
+                case WEEKLY:
+                case MONTHLY:
+                case ONCE:
+                    return sameDateAndTime(now, nextRun);
+
+                case DAILY:
+                case HOURLY:
+                case INTERVAL:
+                    return sameTime(now, nextRun);
+
+                default:
+                    return false;
+            }
+        } catch (Exception ex){
+            throw ex;
+        }
+    }
+
+    private boolean sameDateAndTime(ZonedDateTime now, ZonedDateTime run) {
+        return  now.getDayOfMonth() == run.getDayOfMonth() &&
+                now.getHour() == run.getHour() &&
+                now.getMinute() == run.getMinute();
+    }
+
+    private boolean sameTime(ZonedDateTime now, ZonedDateTime run) {
+        return now.getHour() == run.getHour() &&
+               now.getMinute() == run.getMinute();
+    }
+}
+
+
+
+src/main/java/packages/backup/PredictiveBackupService.java
+package backup;
+
+
+public class PredictiveBackupService implements Backupable {
+    public void backup() throws Exception {}
+}
+src/main/java/packages/backup/BackupModel.java
+package backup;
+
+public class BackupModel {
+    public enum Type {FULL, INCREMENTAL, PREDICTIVE };
+    private Type type;
+
+    public void setType(Type type) { this.type = type; }
+    public Type getType() { return type; }
+}
+src/main/java/packages/backup/BackupDaemon.java
+package backup;
+
+
+import utils.Logger;
+import config.user_config.schedule_config.*;
+import java.time.ZonedDateTime;
+
+public class BackupDaemon implements Runnable {
+
+    private final BackupScheduler scheduler;
+    private final BackupController controller;
+
+    private static volatile boolean running = true;
+
+    public BackupDaemon(BackupScheduler scheduler, BackupController controller) {
+        this.scheduler = scheduler;
+        this.controller = controller;
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (running) {
+
+                ZonedDateTime nextRun = ConfigService.getNextRuntime();
+                long sleepMillis = java.time.Duration
+                        .between(ZonedDateTime.now(ConfigService.zone), nextRun)
+                        .toMillis();
+
+                if (sleepMillis > 0) {
+                    Thread.sleep(sleepMillis);
+                }
+
+                if (!running) break;
+                
+                System.out.println("before backup");
+                controller.runBackup();
+                System.out.println("Afeter backup");
+                ConfigService.lastRun = ZonedDateTime.now(ConfigService.zone);
+
+                Logger.log(
+                    BackupScheduleConfigModel.Status.SUCCESS.name(),
+                    "backup",
+                    "Backup completed at " + ConfigService.lastRun
+                );
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Logger.log(
+                BackupScheduleConfigModel.Status.FAILED.name(),
+                "backup",
+                "Daemon interrupted"
+            );
+        } catch (Exception e) {
+            Logger.log(
+                BackupScheduleConfigModel.Status.FAILED.name(),
+                "backup",
+                e.getMessage()
+            );
+        }
+    }
+
+    public static void stop() {
+        running = false;
+    }
+}
+
+src/main/java/packages/backup/Backupable.java
+package backup;
+
+public interface Backupable {
+    void backup() throws Exception;
+}
+src/main/java/packages/backup/BackupServiceResolver.java
+package backup;
+
+
+public class BackupServiceResolver {
+
+    public static Backupable  getService(BackupModel.Type type) throws Exception {
+        try {
+            switch (type) {
+                case FULL:
+                    return new FullBackupService();
+                case INCREMENTAL:
+                    return new IncrementalBackupService();
+                case PREDICTIVE:
+                    return new PredictiveBackupService();
+                default:
+                    throw new UnsupportedOperationException(
+                            "Unsupported Operation: " + type
+                            );
+            }
+        } catch (Exception ex){
+            throw ex;
+        }
+    }
+}
+
+src/main/java/packages/backup/Backup.java
+package backup;
+
+
+import utils.Logger;
+import config.user_config.schedule_config.BackupScheduleConfigModel;
+
+public class Backup {
+    public static void backup(BackupModel.Type type) {
+        if (type == null)
+            type = BackupModel.Type.INCREMENTAL;
+
+        try {
+
+        Backupable backupService =  BackupServiceResolver.getService(type);
+        BackupScheduler scheduler = new BackupScheduler();
+        BackupController controller = new BackupController(backupService);
+
+        Thread daemon = new Thread(new BackupDaemon(scheduler, controller));
+        daemon.setDaemon(false); 
+        daemon.start();
+
+        System.out.println("Backup daemon running...");
+        } catch (Exception ex){
+            Logger.log(BackupScheduleConfigModel.Status.FAILED.name(), "backup", ex.getMessage());
+
+            System.out.println("Error: form main " + ex);
+        }
+    }
+}
+
+src/main/java/packages/backup/FullBackupService.java
+package backup;
+
+import java.nio.file.Path;
+import java.util.Set;
+
+import config.user_config.file_config.BackupFilesConfigModel;
+import config.user_config.file_config.ConfigService; 
+import config.user_config.storage_config.StorageConfigModel;
+import config.user_config.schedule_config.BackupScheduleConfigModel;
+
+import utils.compdecomp.GzipCompressor;
+import utils.compdecomp.CompressionManager;
+import utils.connection.*;
+import utils.connection.helpers.*;
+import utils.encdecrypt.*;
+import storage.*;
+import utils.Logger;
+import utils.compdecomp.FileUtils;
+
+public class FullBackupService implements Backupable {
+
+    @Override
+    public void backup() throws Exception {
+        try {
+            BackupFilesConfigModel fileConfig =
+                config.user_config.file_config.ConfigService.getConfig();
+
+            Set<String> srcDirs = fileConfig.getSourcePaths();
+            Set<String> includePatterns = fileConfig.getIncludePatterns();
+            boolean recursive = fileConfig.getRecursive();
+
+            StorageConfigModel conf =
+                config.user_config.storage_config.ConfigService.getConfig();
+        
+            StorageConfigModel.Type type = conf.getType();
+
+            String base64Key = conf.getEncryptionKey();
+            EncryptionHandler encryptionHandler = EncryptionHandler.fromBase64Key(base64Key);
+            EncryptionAdapter.setHandler(encryptionHandler);
+
+            CompressionManager compressor = new CompressionManager(
+                    new GzipCompressor(),
+                    Path.of("backup_workspace/temp/compressed/"),
+                    2,
+                    BackupModel.Type.FULL
+                    );
+
+            EncrypterService encrypter = new EncrypterService(2);
+            StorageManager storageManager = null;
+
+            switch (type){
+                case LOCAL:
+                    storageManager = new StorageManager(
+                            new LocalStorageWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case EXTERNAL:
+                case PARTITION: 
+                    storageManager = new StorageManager(
+                            new MountedDeviceWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case SMB:
+                    storageManager = new StorageManager(
+                            new SMBStorageWriter(),
+                            conf,
+                            2
+                            );
+                    break;
+                case SFTP:
+                    System.out.println("inside sftp writer");
+                    System.out.println(config.user_config.storage_config.ConfigService.testConnection());
+                    storageManager = new StorageManager(
+                            new SFTPStorageWriter(),
+                            conf,
+                            2);
+                    break;
+                default:
+                    throw new UnsupportedOperationException(
+                        "Unsupported Operation: " + type);
+
+            }
+
+            encrypter.start();
+            storageManager.start();
+
+            compressor.compressAll(srcDirs, includePatterns, recursive);
+
+
+            encrypter.stop();
+            storageManager.stop();
+
+            System.out.println("Full backup completed.");
+            Logger.log(BackupScheduleConfigModel.Status.SUCCESS.name(), "backup", "backup completed successfully.");
+
+            FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+
+        } catch (Exception ex) {
+            throw ex;
+        }
+    }
+
+}
+
+src/main/java/packages/backup/IncrementalBackupService.java
+package backup;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.util.Set;
+import java.util.List;
+import java.util.HashSet;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import config.user_config.file_config.BackupFilesConfigModel;
+import config.user_config.file_config.ConfigService;
+import config.user_config.storage_config.StorageConfigModel;
+
+import utils.compdecomp.*;
+import utils.encdecrypt.*;
+
+import storage.StorageManager;
+import storage.LocalStorageWriter;
+import storage.MountedDeviceWriter;
+import storage.SMBStorageWriter;
+import storage.SFTPStorageWriter;
+import utils.Logger;
+import config.user_config.schedule_config.BackupScheduleConfigModel;
+
+
+public class IncrementalBackupService implements Backupable {
+
+    private static final Path MANIFEST_PATH = Path.of("backup_workspace/temp/archive/manifest.json");
+
+    @Override
+    public void backup() throws Exception {
+        try {
+            BackupFilesConfigModel fileConfig = ConfigService.getConfig();
+            Set<String> srcDirs = fileConfig.getSourcePaths();
+            Set<String> includePatterns = fileConfig.getIncludePatterns();
+            boolean recursive = fileConfig.getRecursive();
+
+            StorageConfigModel storageConfig = config.user_config.storage_config.ConfigService.getConfig();
+            StorageConfigModel.Type storageType = storageConfig.getType();
+
+            String base64Key = storageConfig.getEncryptionKey();
+            EncryptionHandler encryptionHandler = EncryptionHandler.fromBase64Key(base64Key);
+            EncryptionAdapter.setHandler(encryptionHandler);
+
+            Set<String> backedUpHashes = loadManifestHashes(MANIFEST_PATH);
+
+            CompressionManager compressor = new CompressionManager(
+                    new GzipCompressor(),
+                    Path.of("backup_workspace/temp/compressed/"),
+                    2,
+                    BackupModel.Type.INCREMENTAL
+            );
+
+            EncrypterService encrypter = new EncrypterService(2);
+
+            StorageManager storageManager = switch (storageType) {
+                case LOCAL -> new StorageManager(new LocalStorageWriter(), storageConfig, 2);
+                case EXTERNAL, PARTITION -> new StorageManager(new MountedDeviceWriter(), storageConfig, 2);
+                case SMB -> new StorageManager(new SMBStorageWriter(), storageConfig, 2);
+                case SFTP -> new StorageManager(new SFTPStorageWriter(), storageConfig, 2);
+                default -> throw new UnsupportedOperationException("Unsupported Operation: " + storageType);
+            };
+
+            Set<Path> filesToBackup = new HashSet<>();
+            for (String srcDir : srcDirs) {
+                for (String pattern : includePatterns) {
+                    List<Path> files = utils.compdecomp.FileUtils.findFiles(Path.of(srcDir), pattern, recursive);
+                    for (Path file : files) {
+                        String hash = utils.compdecomp.FileHashing.sha256(file);
+                        if (!backedUpHashes.contains(hash)) {
+                            filesToBackup.add(file);
+                        }
+                    }
+                }
+            }
+
+            encrypter.start();
+            storageManager.start();
+
+            compressor.compressFiles(filesToBackup);
+
+            encrypter.stop();
+            storageManager.stop();
+
+            System.out.println("Incremental backup completed.");
+            Logger.log(BackupScheduleConfigModel.Status.SUCCESS.name(), "backup", "Incremental backup completed successfully.");
+
+            FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+
+        } catch (Exception ex) {
+            Logger.log(BackupScheduleConfigModel.Status.FAILED.name(), "backup", ex.getMessage());
+            throw ex;
+        }
+    }
+
+    private Set<String> loadManifestHashes(Path manifestPath) throws IOException {
+        Set<String> hashes = new HashSet<>();
+        if (!Files.exists(manifestPath)) return hashes;
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(manifestPath.toFile());
+            JsonNode entries = root.get("entries");
+            if (entries != null && entries.isArray()) {
+                for (JsonNode entry : entries) {
+                    String hash = entry.get("hash").asText();
+                    hashes.add(hash);
+                }
+            }
+        } catch (IOException ex) {
+            Logger.log("ERROR","Failed to read manifest", ex.getMessage());
+            throw ex;
+        }
+
+        return hashes;
+    }
+}
+
+src/main/java/config/user_config/UserConfigLoader.java
+
+package config.user_config;
+
+import config.YamlLoader;
+import java.time.DayOfWeek;
+import java.util.Set;
+import java.util.TreeSet;
+import config.user_config.schedule_config.*;
+import config.user_config.file_config.*;
+import config.user_config.storage_config.*;
+
+public class UserConfigLoader extends YamlLoader<RootConfig> {
+
+    public UserConfigLoader() throws IllegalArgumentException {
+        super(RootConfig.class, "config.yaml");
+    }
+
+    @Override
+    public RootConfig loadDefault() {
+
+        RootConfig root = new RootConfig();
+
+        // for scheduler
+        BackupScheduleConfigModel schedule = new BackupScheduleConfigModel();
+        schedule.setEnabled(true);
+        schedule.setFrequency(BackupScheduleConfigModel.Frequency.WEEKLY);
+
+        Set<DayOfWeek> days = new TreeSet<>();
+        days.add(DayOfWeek.MONDAY);
+        schedule.setDaysOfWeek(days);
+
+        schedule.setHours(6);
+        schedule.setMinutes(0);
+        schedule.setTimezone("Africa/Addis_Ababa");
+        schedule.setRecoveryPolicy(BackupScheduleConfigModel.Policy.SKIP);
+
+        // for file selector
+        BackupFilesConfigModel file = new BackupFilesConfigModel();
+        file.setSourcePaths(new TreeSet<>(Set.of("/home/gamma/")));
+        file.setIncludePatterns(new TreeSet<>(Set.of("*.db", "*.log", "*.config")));
+        file.setExcludePatterns(new TreeSet<>(Set.of("*.tmp", "./cache")));
+        file.setFollowSymlinks(false);
+
+        //for storage path selection
+
+        StorageConfigModel storage = new StorageConfigModel();
+        storage.setType(StorageConfigModel.Type.LOCAL);
+        storage.setPath("~/Documents");
+
+        System.out.println(storage.getType()+ " " +  storage.getPath());
+        root.setSchedule(schedule);
+        root.setFiles(file);
+        root.setStorage(storage);
+
+        return root;
+    }
+}
+
+src/main/java/config/user_config/RootConfig.java
+package config.user_config;
+
+import config.user_config.schedule_config.*;
+import config.user_config.file_config.*;
+import config.user_config.storage_config.StorageConfigModel;
+import config.YamlLoader;
+
+public class RootConfig {
+
+    private BackupFilesConfigModel files;
+    private BackupScheduleConfigModel schedule;
+    private StorageConfigModel storage;
+
+    public BackupFilesConfigModel getFiles() {
+        return files;
+    }
+
+    public void setFiles(BackupFilesConfigModel files) {
+        this.files = files;
+    }
+
+    public BackupScheduleConfigModel getSchedule() {
+        return schedule;
+    }
+
+    public void setSchedule(BackupScheduleConfigModel schedule) {
+        this.schedule = schedule;
+    }
+
+    public StorageConfigModel getStorage(){
+        return storage;
+    }
+
+    public void setStorage(StorageConfigModel storage){
+        this.storage = storage;
+    }
+}
+
+src/main/java/config/user_config/storage_config/ConfigService.java
+package config.user_config.storage_config;
+
+import config.user_config.*;
+import utils.connection.ConnectionTester;
+import exception.connection.ConnectionTestException;
+
+public class ConfigService { 
+    private static StorageConfigModel config;
+    private static RootConfig root;
+
+    static {
+        try {
+            UserConfigLoader loader = new UserConfigLoader();
+            root = loader.load();
+            config = root.getStorage();
+
+            ConfigValidator.validate(config);
+
+        } catch (Exception ex) {
+            System.err.println("ConfigService failed to initialize: " + ex);
+            config = null;
+        }
+    }
+
+    public static boolean testConnection() throws ConnectionTestException {
+        if (config == null) return false; 
+            ConnectionTester tester = new ConnectionTester(config);
+        return tester.auth(); 
+    }
+    
+    public static StorageConfigModel.Type getDestinationType(){
+        return config.getType();
+    }
+    
+    public static StorageConfigModel getConfig(){
+        return config;
+    }
+    public static String getLocalDest(){
+        return config.getPath();
+    }
+
+}
+
+src/main/java/config/user_config/storage_config/StorageConfigModel.java
+package config.user_config.storage_config;
+
+public class StorageConfigModel {
+
+    public static enum Type { LOCAL, EXTERNAL, PARTITION, SMB, NFS, SFTP, CLOUD }
+
+    private Type type;
+    private String path;
+    private String mountPoint;
+    private String host;
+    private String share;
+    private String user;
+    private String passwordPath;
+    private String remotePath;
+    private String localMount;
+    private String privateKeyPath;
+    private String provider;
+    private String bucket;
+    private String accessKey;
+    private String secretKey;
+    private String passPhrase;
+    private int port;
+    private String encryptionKey;
+
+    public void setType(Type type) { this.type = type; }
+    public void setPath(String path) { this.path = path; }
+    public void setMountPoint(String mountPoint) { this.mountPoint = mountPoint; }
+    public void setHost(String host) { this.host = host; }
+    public void setShare(String share) { this.share = share; }
+    public void setUser(String user) { this.user = user; }
+    public void setPasswordPath(String passwordPath) { this.passwordPath = passwordPath; }
+    public void setRemotePath(String remotePath) { this.remotePath = remotePath; }
+    public void setLocalMount(String localMount) { this.localMount = localMount; }
+    public void setPrivateKeyPath(String privateKeyPath) { this.privateKeyPath = privateKeyPath; } 
+    public void setProvider(String provider) { this.provider = provider; }
+    public void setBucket(String bucket) { this.bucket = bucket; }
+    public void setAccessKey(String accessKey) { this.accessKey = accessKey; }
+    public void setSecretKey(String secretKey) { this.secretKey = secretKey; }
+    public void setPassPhrase(String passPhrase) { this.passPhrase = passPhrase; }
+    public void setPort(int port) { this.port = port; }
+    public void setEncryptionKey(String encryptionKey) { this.encryptionKey = encryptionKey; }
+
+    public Type getType() { return type; }
+    public String getPath() { return path; }
+    public String getMountPoint() { return mountPoint; }
+    public String getHost() { return host; }
+    public String getShare() { return share; }
+    public String getUser() { return user; }
+    public String getPasswordPath() { return passwordPath; }
+    public String getRemotePath() { return remotePath; }
+    public String getLocalMount() { return localMount; }
+    public String getPrivateKeyPath() { return privateKeyPath; }
+    public String getProvider() { return provider; }
+    public String getBucket() { return bucket; }
+    public String getAccessKey() { return accessKey; }
+    public String getSecretKey() { return secretKey; }
+    public String getPassPhrase() { return passPhrase; }
+    public int getPort() { return port; }
+    public String getEncryptionKey() { return encryptionKey; }
+
+    @Override
+    public String toString() {
+        return "StorageConfigModel{" +
+                "type=" + type +
+                ", path='" + path + '\'' +
+                ", mountPoint='" + mountPoint + '\'' +
+                ", host='" + host + '\'' +
+                ", share='" + share + '\'' +
+                ", user='" + user + '\'' +
+                ", passwordPath='" + passwordPath + '\'' +
+                ", remotePath='" + remotePath + '\'' +
+                ", localMount='" + localMount + '\'' +
+                ", privateKeyPath='" + privateKeyPath + '\'' +
+                ", provider='" + provider + '\'' +
+                ", bucket='" + bucket + '\'' +
+                ", accessKey='" + accessKey + '\'' +
+                ", secretKey='" + secretKey + '\'' +
+                ", passPhrase='" + passPhrase + '\'' +
+                ", port=" + port +
+                '}';
+    }
+}
+
+src/main/java/config/user_config/storage_config/ConfigValidator.java
+package config.user_config.storage_config;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+
+import exception.connection.ConnectionTestException;
+
+
+public class ConfigValidator {
+
+    public static void validate(StorageConfigModel m) throws IllegalArgumentException , ConnectionTestException {
+
+        StorageConfigModel.Type type = m.getType();
+
+        String path = m.getPath();
+        String mountPoint = m.getMountPoint();
+        String host = m.getHost();
+        String share = m.getShare();
+        String user = m.getUser();
+        String passwordPath = m.getPasswordPath();
+        String remotePath = m.getRemotePath();
+        String localMount = m.getLocalMount();
+        String privateKey = m.getPrivateKeyPath(); 
+        int port = m.getPort();
+
+        if (type == StorageConfigModel.Type.LOCAL) {
+            if (isBlank(path) || !isValidPath(path))
+                throw new IllegalArgumentException("Invalid path: " + path);
+        } 
+
+        if (type == StorageConfigModel.Type.EXTERNAL || type == StorageConfigModel.Type.PARTITION) {
+            if (isBlank(mountPoint) || !isValidPath(mountPoint))
+                throw new IllegalArgumentException("Invalid mountPoint: " + mountPoint);
+        }
+
+        if (type == StorageConfigModel.Type.SMB) {
+            if (isBlank(share))
+                throw new IllegalArgumentException("SMB requires a share name.");
+        }
+
+        if (type == StorageConfigModel.Type.SMB || type == StorageConfigModel.Type.SFTP) {
+            if (isBlank(user))
+                throw new IllegalArgumentException("User cannot be empty.");
+        }
+
+        if (type == StorageConfigModel.Type.NFS) {
+            if (isBlank(remotePath))
+                throw new IllegalArgumentException("remotePath is required.");
+            if (isBlank(localMount) || !isValidPath(localMount))
+                throw new IllegalArgumentException("Invalid localMount: " + localMount);
+        }
+
+        if (type == StorageConfigModel.Type.SFTP) {
+            if (!isBlank(privateKey) && !isValidPath(privateKey))
+                throw new IllegalArgumentException("Invalid privateKey: " + privateKey);
+            if (port <= 0)
+                throw new IllegalArgumentException("Invalid port: " + port);
+        }
+
+        if (type == StorageConfigModel.Type.SMB ||
+            type == StorageConfigModel.Type.NFS ||
+            type == StorageConfigModel.Type.SFTP) {
+            if (isBlank(host))
+                throw new IllegalArgumentException("Host cannot be empty.");
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private static boolean isValidPath(String path) throws ConnectionTestException { 
+        return path != null && Files.exists(Paths.get(path));
+    }
+}
+
+src/main/java/config/user_config/schedule_config/ConfigService.java
+package config.user_config.schedule_config;
+
+import java.time.*;
+import java.nio.file.Path;
+import java.nio.file.Files;
+
+import config.user_config.*;
+
+public class ConfigService {
+    public static ZonedDateTime lastRun; // we keep track of lastrun for the interval backup
+
+    private static BackupScheduleConfigModel m;
+    private static RootConfig root;
+    public static ZoneId zone;
+
+    static {
+        try {
+            UserConfigLoader loader = new UserConfigLoader();
+            root = loader.load();
+            m = root.getSchedule();
+
+            ConfigValidator.validate(m);
+
+            zone = ZoneId.of(m.getTimezone());
+
+        } catch (Exception ex) {
+            System.err.println("ConfigService failed to initialize: " + ex);
+
+            m = null;
+            zone = ZoneId.systemDefault();
+        }
+    }
+
+    public static BackupScheduleConfigModel.Status getLastStatus() {
+        try {
+            return Files.readAllLines(Path.of("backup_system.log"))
+                .stream()
+                .map(line -> line.split("\\|"))
+                .filter(arr -> arr.length >= 4)
+                .filter(arr -> arr[1].equals("backup"))
+                .reduce((first, second) -> second)     
+                .map(arr -> BackupScheduleConfigModel.Status.valueOf(arr[0]))  
+                .orElse(BackupScheduleConfigModel.Status.UNKNOWN);
+
+        } catch (Exception ex) {
+            return BackupScheduleConfigModel.Status.UNKNOWN;
+        }
+    }
+   
+    public static BackupScheduleConfigModel.Frequency getFrequency(){
+        return m.getFrequency();
+    }
+
+    public static ZonedDateTime getNextRuntime() {
+
+        if (m == null || !m.isEnabled())
+            return null;
+
+        ZonedDateTime current = ZonedDateTime.now(zone);
+
+        BackupScheduleConfigModel.Status lastStatus = getLastStatus();
+
+        if (lastStatus == BackupScheduleConfigModel.Status.FAILED ||
+            lastStatus == BackupScheduleConfigModel.Status.MISSED) {
+
+            switch (m.getRecoveryPolicy()) {
+                case SKIP:
+                    break;
+                case RUN_IMMEDIATELY:
+                    return current;
+            }
+        }
+
+        switch (m.getFrequency()) {
+            case DAILY:
+                return daily(current);
+
+            case WEEKLY:
+                return weekly(current);
+
+            case MONTHLY:
+                return monthly(current);
+
+            case HOURLY:
+                return current.plusHours(1)
+                              .withMinute(m.getMinutes())
+                              .withSecond(0);
+
+            case INTERVAL:
+                if (lastRun == null) {
+                    lastRun = current;
+                    return lastRun;
+                }
+                ZonedDateTime next = lastRun.plusMinutes(m.getIntervalMinutes());
+                if (!next.isAfter(current)) {
+                    next = current.plusMinutes(m.getIntervalMinutes()); 
+                }
+                return next;
+            case ONCE:
+                return once(current);
+
+            default:
+                return null;
+        }
+    }
+
+    private static ZonedDateTime daily(ZonedDateTime now) {
+        ZonedDateTime next = now.withHour(m.getHours())
+                                .withMinute(m.getMinutes())
+                                .withSecond(0);
+
+        if (next.isBefore(now))
+            next = next.plusDays(1);
+
+        return next;
+    }
+
+    private static ZonedDateTime weekly(ZonedDateTime now) {
+        ZonedDateTime next = null;
+
+        DayOfWeek today = now.getDayOfWeek();
+
+        for (DayOfWeek target : m.getDaysOfWeek()) {
+
+            int diff = target.getValue() - today.getValue();
+            if (diff <= 0) diff += 7;
+
+            ZonedDateTime candidate =
+                now.plusDays(diff)
+                   .withHour(m.getHours())
+                   .withMinute(m.getMinutes())
+                   .withSecond(0);
+
+            if (next == null || candidate.isBefore(next))
+                next = candidate;
+        }
+
+        return next;
+    }
+
+    private static ZonedDateTime monthly(ZonedDateTime now) {
+        ZonedDateTime next = null;
+
+        for (int d : m.getDaysOfMonth()) {
+
+            int safe = safeDay(now, d);
+
+            ZonedDateTime candidate = now.withDayOfMonth(safe)
+                                         .withHour(m.getHours())
+                                         .withMinute(m.getMinutes())
+                                         .withSecond(0);
+
+            if (candidate.isBefore(now)) {
+                ZonedDateTime nextMonth = now.plusMonths(1);
+                int safeNext = safeDay(nextMonth, d);
+
+                candidate = nextMonth.withDayOfMonth(safeNext)
+                                     .withHour(m.getHours())
+                                     .withMinute(m.getMinutes())
+                                     .withSecond(0);
+            }
+
+            if (next == null || candidate.isBefore(next))
+                next = candidate;
+        }
+
+        return next;
+    }
+
+    private static int safeDay(ZonedDateTime now, int day) {
+        int last = now.toLocalDate().lengthOfMonth();
+        return Math.min(day, last);
+    }
+
+    private static ZonedDateTime once(ZonedDateTime now) {
+        LocalDate std = LocalDate.parse(m.getStartDate());
+        ZonedDateTime t =   std
+                           .atStartOfDay(now.getZone())
+                           .withHour(m.getHours())
+                           .withMinute(m.getMinutes())
+                           .withSecond(0);
+
+        if (t.isBefore(now))
+            return null;
+
+        return t;
+    }
+
+    public static void switchMode() {
+        m.setEnabled(!m.isEnabled());
+    }
+}
+
+src/main/java/config/user_config/schedule_config/BackupScheduleConfigModel.java
+package config.user_config.schedule_config;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.util.Set;
+import java.util.TreeSet;
+
+public class BackupScheduleConfigModel {
+
+    public enum Frequency { DAILY, WEEKLY, MONTHLY, HOURLY, INTERVAL, ONCE }
+    public enum Status { SUCCESS, FAILED, MISSED, UNKNOWN }
+    public enum Policy { RUN_IMMEDIATELY, SKIP }
+
+    private Frequency frequency;
+    private boolean enabled;
+    private int hours;
+    private int minutes;
+    private String timezone;
+    private String startDate; 
+
+    private Set<DayOfWeek> daysOfWeek = new TreeSet<>();
+    private Set<Integer> daysOfMonth = new TreeSet<>();
+
+    private int intervalMinutes;
+    private Policy recoveryPolicy;
+
+     
+    public Frequency getFrequency() { return frequency; }
+    public boolean isEnabled() { return enabled; }
+    public int getHours() { return hours; }
+    public int getMinutes() { return minutes; }
+    public String getTimezone() { return timezone; }
+    public Set<DayOfWeek> getDaysOfWeek() { return daysOfWeek; }
+    public Set<Integer> getDaysOfMonth() { return daysOfMonth; }
+    public int getIntervalMinutes() { return intervalMinutes; }
+
+    public String getStartDate() { 
+        return startDate != null ? startDate : null; 
+    }
+
+    public Policy getRecoveryPolicy() { return recoveryPolicy; }
+
+    public void setFrequency(Frequency frequency) { this.frequency = frequency; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setHours(int hours) { this.hours = hours; }
+    public void setMinutes(int minutes) { this.minutes = minutes; }
+    public void setTimezone(String timezone) { this.timezone = timezone; }
+    public void setDaysOfWeek(Set<DayOfWeek> daysOfWeek) { this.daysOfWeek = daysOfWeek; }
+    public void setDaysOfMonth(Set<Integer> daysOfMonth) { this.daysOfMonth = daysOfMonth; }
+    public void setIntervalMinutes(int intervalMinutes) { this.intervalMinutes = intervalMinutes; }
+    public void setStartDate(String startDate) { this.startDate = startDate; }
+    public void setRecoveryPolicy(Policy recoveryPolicy) { this.recoveryPolicy = recoveryPolicy; }
+}
+
+src/main/java/config/user_config/schedule_config/ConfigValidator.java
+package config.user_config.schedule_config;
+
+public class ConfigValidator {
+
+    public static void validate(BackupScheduleConfigModel m)
+            throws IllegalArgumentException {
+
+        if (m == null)
+            throw new IllegalArgumentException("Config is empty or malformed.");
+
+        if (m.getHours() < 0 || m.getHours() > 23)
+            throw new IllegalArgumentException("Hour must be 0–23.");
+
+        if (m.getMinutes() < 0 || m.getMinutes() > 59)
+            throw new IllegalArgumentException("Minute must be 0–59.");
+
+        if (m.getFrequency() == BackupScheduleConfigModel.Frequency.WEEKLY &&
+            m.getDaysOfWeek().isEmpty())
+            throw new IllegalArgumentException("Weekly schedule requires daysOfWeek.");
+
+        if (m.getFrequency() == BackupScheduleConfigModel.Frequency.MONTHLY) {
+            for (int d : m.getDaysOfMonth()) {
+                if (d < 1 || d > 31)
+                    throw new IllegalArgumentException("Monthly backup days must be 1–31.");
+            }
+        }
+
+        if (m.getFrequency() == BackupScheduleConfigModel.Frequency.INTERVAL &&
+            m.getIntervalMinutes() <= 0)
+            throw new IllegalArgumentException("Interval must be > 0.");
+    }
+}
+
+src/main/java/config/user_config/file_config/ConfigService.java
+package config.user_config.file_config;
+
+import java.util.Set;
+import java.util.List;
+import java.util.ArrayList;
+import config.user_config.*;
+
+
+public class ConfigService{
+    private static BackupFilesConfigModel m;
+    private static RootConfig root ;
+    static {
+        try {
+            UserConfigLoader loader = new UserConfigLoader();
+            root = loader.load();
+            m = root.getFiles();
+
+            ConfigValidator.validate(m);
+        } catch (Exception ex) {
+            System.err.println("Faild to initailize Loader: " + ex);
+            m = null;
+        }
+    }
+
+    public static BackupFilesConfigModel getConfig() {
+        return m;
+    }
+
+// for testing
+    public static List<Set<String>> getFiles() {
+        List<Set<String>> files = new ArrayList<>();
+        files.add(m.getSourcePaths());
+        files.add(m.getIncludePatterns());
+        files.add(m.getExcludePatterns());
+
+        return files;
+    }
+
+}
+src/main/java/config/user_config/file_config/BackupFilesConfigModel.java
+package config.user_config.file_config;
+
+import java.util.Set;
+import java.util.TreeSet;
+
+public class BackupFilesConfigModel {
+
+    private Set<String> sourcePaths = new TreeSet<>();
+    private Set<String> includePatterns = new TreeSet<>();
+    private Set<String> excludePatterns = new TreeSet<>();
+    private boolean followSymlinks = false;  
+    private final int maxFollowDepth = 10;
+    private boolean recursive;
+
+    public void setSourcePaths(Set<String> sourcePaths) {
+        this.sourcePaths.clear();
+        this.sourcePaths.addAll(sourcePaths);
+    }
+
+    public void setIncludePatterns(Set<String> includePatterns) {
+        this.includePatterns.clear();
+        this.includePatterns.addAll(includePatterns);
+    }
+
+    public void setExcludePatterns(Set<String> excludePatterns) {
+        this.excludePatterns.clear();
+        this.excludePatterns.addAll(excludePatterns);
+    }
+
+    public void setFollowSymlinks(boolean followSymlinks) {
+        this.followSymlinks = followSymlinks;
+    }
+    
+    public void setRecursive(boolean isRecursive) {
+        this.recursive = isRecursive;
+    }
+
+    public boolean getRecursive() { return recursive;}
+
+    public Set<String> getSourcePaths() {
+        return this.sourcePaths;
+    }
+
+    public Set<String> getIncludePatterns() {
+        return this.includePatterns;
+    }
+
+    public Set<String> getExcludePatterns() {
+        return this.excludePatterns;
+    }
+
+    public boolean getFollowSymlinks() {
+        return this.followSymlinks;
+    }
+
+    public int getMaxFollowLink() {
+        return this.maxFollowDepth;
+    }
+
+    @Override
+    public String toString() {
+        return "BackupFilesConfigModel {" +
+                "\n  sourcePaths=" + sourcePaths +
+                ",\n  includePatterns=" + includePatterns +
+                ",\n  excludePatterns=" + excludePatterns +
+                ",\n  followSymlinks=" + followSymlinks +
+                "\n}";
+    }
+}
+
+src/main/java/config/user_config/file_config/ConfigValidator.java
+package config.user_config.file_config;
+
+import java.util.Set;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+
+public class ConfigValidator {
+    public static void validate(BackupFilesConfigModel m)
+        throws  IllegalArgumentException
+    {
+         
+            Set<String> sources = m.getSourcePaths();
+            Set<String> includes = m.getIncludePatterns();
+            Set<String> excludes = m.getExcludePatterns();
+
+            if (sources.isEmpty())
+                throw new IllegalArgumentException("Source path can't be empty.");
+
+            for (String source : sources){
+                if (source.isBlank() || !isValidPath(source))
+                    throw new IllegalArgumentException("Invalid Path: " + source);
+            }
+
+            if (includes.isEmpty())
+                throw new IllegalArgumentException("Include patterns can't be empty.");
+            
+            for (String include: includes){
+                if (include.isBlank() || !isValidFormat(include))
+                    throw new IllegalArgumentException("Invalid include pattern: " + include);
+            }
+
+            if (excludes.isEmpty())
+                throw new IllegalArgumentException("Exclude patterns can't be empty.");
+
+            for (String exclude : excludes){
+                if (exclude.isBlank() || !isValidFormat(exclude))
+                    throw new IllegalArgumentException("Exclude format can't be empty");
+            }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+
+    private static boolean isValidFormat(String pattern)  {
+        try {
+            PathMatcher p = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
+            return true;
+        } catch (IllegalArgumentException ex){
+            return false;
+        }
+    }
+
+    private static boolean isValidPath(String path){
+      Path p = Paths.get(path);
+      return Files.exists(p);
+
+    }
+
+}
+src/main/java/config/DbConfig.java
+package config;
+
+import java.sql.*;
+
+public class DbConfig {
+
+    static {
+        try {
+            Class.forName("org.sqlite.JDBC");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("SQLite JDBC driver not found", e);
+        }
+    }
+
+    public static Connection getConnection(String url) throws SQLException {
+        return DriverManager.getConnection(url);
+    }
+}
+
+src/main/java/config/app_config/DefaultStoragePolicy.java
+src/main/java/config/app_config/RecoveryPolicyConfig.java
+src/main/java/config/app_config/LoggingConfig.java
+src/main/java/config/app_config/SecurityConfig.java
+src/main/java/config/app_config/SystemCriticalFilesConfig.java
+
+src/main/java/config/YamlLoader.java
+package config;
+
+import java.io.*;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.LoaderOptions;
+
+public abstract class YamlLoader<T> {
+
+    private final Class<T> type;
+    private final String path;
+
+    public YamlLoader(Class<T> type, String path) {
+        this.type = type;
+        this.path = path;
+    }
+
+    public T load() {
+        try (FileInputStream fis = new FileInputStream(path)) {
+
+            LoaderOptions options = new LoaderOptions();
+            Yaml yaml = new Yaml(new Constructor(type, options));
+
+            T model = yaml.load(fis);
+            return (model != null) ? model : loadDefault();
+
+        } catch (Exception e) {
+            System.out.println(e);
+            return loadDefault();
+        }
+    }
+
+    public abstract T loadDefault();
+}
+
+src/main/java/utils/EncryptionUtils.java
+package utils;
+import org.mindrot.jbcrypt.BCrypt;
+
+public class EncryptionUtils{
+    public static String hashPassword(String rawData){
+        return BCrypt.hashpw(rawData, BCrypt.gensalt());
+    }
+
+    public static boolean verifyPassword(String enterdPassword, String storedHash){
+        return BCrypt.checkpw(enterdPassword, storedHash);
+    }
+}
+
+
+src/main/java/utils/Logger.java
+package utils;
+
+import java.io.*;
+import java.time.*;
+public class Logger {
+    private static String PATH = "backup_system.log";
+    private static String now = LocalTime.now().toString();
+
+    public static void log(String eventType, String source, String message ) {
+        String logMsg = eventType + "|" + source + "|" + message + "|" + now + System.lineSeparator();
+
+        try ( FileWriter fw = new FileWriter(PATH, true)) {
+            fw.write(logMsg);
+            System.out.println("written to log.");
+
+        } catch (IOException ex){
+           System.out.println("Error: " + ex);
+
+        }
+    }
+}
+src/main/java/utils/compdecomp/FileUtils.java
+package utils.compdecomp;
+
+import java.nio.file.*;
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public final class FileUtils {
+    private FileUtils() {}
+
+    public static List<Path> findFiles(Path dir, String globPattern, boolean recursive) throws IOException {
+        if (dir == null || !Files.isDirectory(dir)) return List.of();
+
+        String pattern = "glob:" + globPattern;
+        PathMatcher matcher = dir.getFileSystem().getPathMatcher(pattern);
+
+        try (Stream<Path> s = recursive ? Files.walk(dir) : Files.list(dir)) {
+            return s.filter(Files::isRegularFile)
+                    .filter(p -> matcher.matches(p.getFileName()))
+                    .distinct() 
+                    .filter(p -> !p.getFileName().toString().startsWith(".~lock"))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    public static Path ensureDir(Path dir) throws IOException {
+        if (dir == null) throw new IllegalArgumentException("dir must not be null");
+        if (!Files.exists(dir)) Files.createDirectories(dir);
+        return dir;
+    }
+
+    public static Path tempFile(Path dir, String prefix, String suffix) throws IOException {
+        ensureDir(dir);
+        return Files.createTempFile(dir, prefix, suffix);
+    }
+
+    public static void deleteDirectoryRecursively(Path dir) throws IOException {
+        if (Files.notExists(dir)) return;
+
+        Files.walk(dir)
+             .sorted((a, b) -> b.compareTo(a)) 
+             .forEach(path -> {
+                 try {
+                     Files.delete(path);
+                 } catch (IOException e) {
+                     throw new RuntimeException("Failed to delete: " + path, e);
+                 }
+             });
+    }
+
+    public  static void cleanup(Path dir) {
+        if (Files.exists(dir)) {
+            try {
+                FileUtils.deleteDirectoryRecursively(dir);
+            } catch (IOException e) {
+                System.err.println("Failed to clean temp directory " + dir + ": " + e.getMessage());
+            }
+        }
+    }
+}
+
+src/main/java/utils/compdecomp/FileHashing.java
+package utils.compdecomp;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+
+public final class FileHashing {
+    public static String sha256(Path file) throws IOException , NoSuchAlgorithmException {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        md.update(Files.readAllBytes(file));
+        return bytesToHex(md.digest());
+    }
+
+    private static String bytesToHex(byte[] b) {
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x));
+        return sb.toString();
+    }
+}
+
+src/main/java/utils/compdecomp/CompressionManager.java
+package utils.compdecomp;
+
+import java.nio.file.*;
+import java.io.IOException;
+import java.util.Set;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import backup.BackupModel;
+import utils.Logger;
+import utils.Queues;
+import utils.manifest.*;
+import java.util.Objects;
+import java.time.*;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
+
+public class CompressionManager {
+
+    private final Compressable compressor;
+    private final Path tempDir;
+    private final ExecutorService workers;
+    private ManifestBuilder manifest;
+    private String timestamp;
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+
+    public CompressionManager(Compressable compressor, Path tempDir, int threads, BackupModel.Type type) throws IOException {
+        this.compressor = Objects.requireNonNull(compressor);
+        this.tempDir = Objects.requireNonNull(tempDir);
+        this.workers = Executors.newFixedThreadPool(Math.max(1, threads));
+        manifest = new ManifestBuilder(Path.of("backup_workspace/temp/archive"),type);
+
+    }
+
+    public void compressAll(Set<String> sources, Set<String> includes, boolean recursive) throws IOException, InterruptedException {
+        for (String srcDir : sources) {
+
+            if (srcDir == null) continue;
+            for (String pattern : includes) {
+                List<Path> files = FileUtils.findFiles(Path.of(srcDir), pattern, recursive);
+                for (Path file : files) {
+                    final Path f = file;
+
+                    String name = f.getFileName().toString();
+                    if (name.startsWith(".")) {
+                        System.out.println("Skipping lock file: " + name);
+                        continue;
+                    }
+
+                    workers.submit(() -> {
+                        try {
+                            Path compressed = compressor.compress(f, tempDir);
+                            timestamp = compressed.getFileName().toString().split("_")[1].split("\\.")[0];
+
+                            Queues.COMPRESSED_QUEUE.put(compressed);
+                            manifest.addEntry(new ManifestEntry(
+                                        f,
+                                        FileHashing.sha256(f),
+                                        Files.size(f),
+                                        timestamp
+                                        ));
+                            System.out.println(f + " " + Files.size(f) +  FileHashing.sha256(f) + "\tcompressed");
+
+                        } catch (Exception ex) {
+                            Logger.log("ERROR", "compression",ex.getMessage());
+                            System.out.println("Error: " + ex);
+                        }
+                    });
+                }
+            }
+        }
+
+
+
+        workers.shutdown();
+        if (!workers.awaitTermination(1, TimeUnit.HOURS)) {
+            workers.shutdownNow();
+
+        }
+
+        Queues.COMPRESSED_QUEUE.put(Queues.POISON);
+        manifest.save();
+
+    }
+
+    public void compressFiles(Set<Path> files) throws IOException, InterruptedException {
+        for (Path file : files) {
+            if (file == null) continue;
+
+            workers.submit(() -> {
+                try {
+                    Path compressed = compressor.compress(file, tempDir);
+                    Queues.COMPRESSED_QUEUE.put(compressed);
+                    timestamp = compressed.getFileName().toString().split("_")[1].split("\\.")[0];
+
+                    manifest.addEntry(new ManifestEntry(
+                                file,
+                                FileHashing.sha256(file),
+                                Files.size(file),
+                                timestamp
+                                ));
+
+                    System.out.println(file + " compressed");
+
+                } catch (Exception ex) {
+                    Logger.log("ERROR", "compression", ex.getMessage());
+                }
+            });
+        }
+
+        workers.shutdown();
+        if (!workers.awaitTermination(1, TimeUnit.HOURS)) {
+            workers.shutdownNow();
+        }
+
+        Queues.COMPRESSED_QUEUE.put(Queues.POISON);
+        manifest.save();
+    }
+
+
+}
+
+src/main/java/utils/compdecomp/GzipCompressor.java
+package utils.compdecomp;
+
+import java.nio.file.*;
+import java.io.*;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.GZIPInputStream;
+import java.time.format.DateTimeFormatter;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.util.Objects;
+
+public class GzipCompressor implements Compressable {
+
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+    @Override
+    public Path compress(Path source, Path targetDir) throws IOException {
+        Objects.requireNonNull(source);
+        Objects.requireNonNull(targetDir);
+
+        if (!Files.isRegularFile(source)) {
+            throw new IllegalArgumentException("Source must be a regular file: " + source);
+        }
+
+        FileUtils.ensureDir(targetDir);
+
+        String base = source.getFileName().toString();
+        String timestamp = ZonedDateTime.now(ZoneId.systemDefault()).format(TS);
+        String outName = base + "_" + timestamp + ".gz";
+
+        Path temp = FileUtils.tempFile(targetDir, base + "_" + timestamp, ".tmp");
+        Path target = targetDir.resolve(outName);
+
+        try (InputStream in = Files.newInputStream(source);
+             OutputStream fout = Files.newOutputStream(temp);
+             BufferedOutputStream bout = new BufferedOutputStream(fout);
+             GZIPOutputStream gzip = new GZIPOutputStream(bout)) {
+
+            in.transferTo(gzip);
+            gzip.finish();
+        }
+
+        Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        return target;
+    }
+
+    @Override
+    public Path decompress(Path compressedFile, Path targetDir) throws IOException {
+        Objects.requireNonNull(compressedFile);
+        Objects.requireNonNull(targetDir);
+
+        if (!Files.isRegularFile(compressedFile)) {
+            throw new IllegalArgumentException("Source must be a regular file: " + compressedFile);
+        }
+
+        FileUtils.ensureDir(targetDir);
+
+        String name = compressedFile.getFileName().toString();
+        
+        int start = name.length() - 17;
+        String ts = name.substring(start, name.length() - 3);
+
+        String filename = name.endsWith(".gz") ? name.substring(0, name.length() - 18) : name;
+        String outName = ts + "_" + filename;
+
+        Path temp = FileUtils.tempFile(targetDir, outName, ".tmp");
+        Path target = targetDir.resolve(outName);
+
+        try (InputStream fin = Files.newInputStream(compressedFile);
+             BufferedInputStream bin = new BufferedInputStream(fin);
+             GZIPInputStream gis = new GZIPInputStream(bin);
+             OutputStream out = Files.newOutputStream(temp)) {
+
+            gis.transferTo(out);
+        }
+
+        Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        return target;
+    }
+}
+
+src/main/java/utils/compdecomp/Compressable.java
+package utils.compdecomp;
+
+import java.nio.file.Path;
+import java.io.IOException;
+
+public interface Compressable {
+    Path compress(Path source, Path targetDir) throws IOException;
+    Path decompress(Path compressedFile, Path targetDir) throws IOException;
+
+}
+
+src/main/java/utils/connection/SFTPConnectionHandler.java
+package utils.connection;
+
+import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import utils.connection.helpers.CredentialUtils;
+import utils.connection.helpers.NetworkUtils;
+import exception.connection.*;
+import config.user_config.storage_config.StorageConfigModel;
+
+public class SFTPConnectionHandler implements ConnectionHandler {
+
+    private static final int DEFAULT_PORT = 22;
+    private static final int CONNECT_TIMEOUT_MS = 5000;
+
+    @Override
+    public boolean test(StorageConfigModel config) {
+        try {
+            String password;
+            Session session = null;
+
+            if (config.getPasswordPath() != null ){
+                password = CredentialUtils.readPasswordPath(config.getPasswordPath());
+                session = getSessionByPassword(config.getUser(), config.getHost(), config.getPort(), password);
+            }
+            else 
+
+                session = getSessionByPrivateKeyPassKey(config.getUser(), config.getHost(), config.getPrivateKeyPath(),config.getPassPhrase(), config.getPort());
+           
+            session.disconnect();
+   
+            return true;
+        } catch (Exception ex) {
+            System.out.println("Error: " + ex);
+            return false;
+        }
+    }
+
+    public static Session getSessionByPassword(String username, String host, int port, String password)
+            throws HostUnreachableException, ConnectionTestException {
+            try {
+                Objects.requireNonNull(host, "host is required");
+
+                JSch jsch = new JSch();
+                int realPort = (port <= 0) ? DEFAULT_PORT : port;
+
+                NetworkUtils.validateHostReachable(host, CONNECT_TIMEOUT_MS);
+
+                if (!NetworkUtils.isPortOpen(host, realPort, CONNECT_TIMEOUT_MS)) {
+                    throw new HostUnreachableException(host + "here");
+                }
+
+                Session session = jsch.getSession(username != null ? username : "", host, realPort);
+                session.setPassword(password);
+                session.setConfig("StrictHostKeyChecking", "no");
+                session.connect(CONNECT_TIMEOUT_MS);
+                return session;
+
+            } catch (JSchException ex) {
+                throw new ConnectionTestException("Failed to connect to host: " + host, ex);
+            }
+    }
+
+    public static Session getSessionByPrivateKeyPassKey( String username, String host, String privateKeyPath, String passPhrase, int port) 
+            throws ConnectionTestException, HostUnreachableException {
+
+            try {
+                Objects.requireNonNull(username, "username can't be empty");
+                Objects.requireNonNull(host, "host can't be empty");
+                Objects.requireNonNull(privateKeyPath, "private key path can't be empty");
+
+                int realPort = port <= 0 ? DEFAULT_PORT : port;
+
+                NetworkUtils.validateHostReachable(host, CONNECT_TIMEOUT_MS);
+                if (!NetworkUtils.isPortOpen(host, realPort, CONNECT_TIMEOUT_MS)) {
+                    throw new HostUnreachableException(host);
+                }
+
+                if (!CredentialUtils.fileExists(privateKeyPath)) {
+                    throw new ConnectionTestException("Private key file path doesn't exist");
+                }
+
+                JSch jsch = new JSch();
+
+                if (passPhrase == null) {
+                    jsch.addIdentity(privateKeyPath);
+                } else {
+                    jsch.addIdentity(privateKeyPath, passPhrase);
+                }
+                Session session = jsch.getSession(username, host, realPort);
+                session.setConfig("StrictHostKeyChecking", "no");
+                session.connect(CONNECT_TIMEOUT_MS);
+
+                return session;
+
+            } catch (JSchException ex) {
+                throw new ConnectionTestException("Couldn't create session with host: " + host + ":\t" + ex, ex);
+            } 
+    }
+
+    public static ChannelExec openExecChannel(Session session) throws ConnectionTestException {
+        try {
+            Objects.requireNonNull(session, "session is required");
+            return (ChannelExec) session.openChannel("exec");
+        } catch (JSchException ex) {
+            throw new ConnectionTestException("Failed to open exec channel.", ex);
+        }
+    }
+}
+
+src/main/java/utils/connection/ConnectionTester.java
+package utils.connection;
+
+import config.user_config.storage_config.StorageConfigModel;
+import exception.connection.ConnectionTestException;
+
+public class ConnectionTester {  
+    private final StorageConfigModel config;
+
+    public ConnectionTester(StorageConfigModel config){
+        this.config = config;
+    }
+
+    public boolean auth()  throws ConnectionTestException {
+        try {
+            ConnectionHandler handler = ConnectionHandlerResolver.getHandler(config);
+            if (handler == null)
+                return false;
+            return handler.test(config);
+        } catch (Exception ex) {
+            throw new ConnectionTestException("Connection Failed.", ex);
+        }
+    }
+}
+
+src/main/java/utils/connection/NFSConnectionHandler.java
+package utils.connection;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+public class NFSConnectionHandler implements ConnectionHandler {
+     @Override
+     public boolean test(StorageConfigModel config){
+         return false;
+     }
+}
+src/main/java/utils/connection/helpers/CredentialUtils.java
+package utils.connection.helpers;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+
+public class CredentialUtils {
+
+    public static String readPasswordPath(String path) throws IOException {
+        Path p = Path.of(path); 
+        return Files.readAllLines(p, StandardCharsets.UTF_8).get(0).trim(); 
+    }
+
+    public static boolean fileExists(String path) {
+        return path != null && Files.exists(Path.of(path));
+    }
+}
+
+src/main/java/utils/connection/helpers/NetworkUtils.java
+package utils.connection.helpers;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import exception.connection.HostUnreachableException;
+
+public class NetworkUtils {
+
+    private NetworkUtils() {}
+
+    public static void validateHostReachable(String host, int timeout) throws HostUnreachableException {
+        try {
+            InetAddress.getByName(host); 
+        } catch (UnknownHostException ex) {
+            throw new HostUnreachableException(host, ex);
+        }
+
+        try (Socket s = new Socket()) {
+            s.connect(new InetSocketAddress(host, 2222), timeout);
+        } catch (IOException ex) {
+            throw new HostUnreachableException(host, ex);
+        }
+    }
+
+    public static boolean isPortOpen(String host, int port, int timeout) {
+        try (Socket s = new Socket()) {
+            s.connect(new InetSocketAddress(host, port), timeout);
+            return true;
+        } catch (IOException ex) {
+            return false;
+        }
+    }
+}
+
+src/main/java/utils/connection/ConnectionHandler.java
+package utils.connection;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+public interface ConnectionHandler {
+    boolean test(StorageConfigModel config);
+}
+src/main/java/utils/connection/CloudConnectionHandler.java
+package utils.connection;
+
+
+import config.user_config.storage_config.StorageConfigModel;
+public class CloudConnectionHandler implements ConnectionHandler {
+     @Override
+     public boolean test(StorageConfigModel config){
+         return false;
+     }
+}
+src/main/java/utils/connection/SMBConnectionHandler.java
+package utils.connection;
+
+import com.hierynomus.smbj.SMBClient;
+import com.hierynomus.smbj.connection.Connection;
+import com.hierynomus.smbj.auth.AuthenticationContext;
+import com.hierynomus.smbj.session.Session;
+import com.hierynomus.smbj.share.DiskShare;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import utils.connection.helpers.*;
+import exception.connection.*;
+import config.user_config.storage_config.StorageConfigModel;
+
+public class SMBConnectionHandler implements ConnectionHandler {
+
+    private static final int PORT = 445;
+    private static final int CONNECT_TIMEOUT_MS = 5000;
+
+    @Override
+    public boolean test(StorageConfigModel config)  {
+        try {
+            SMBClient client = openConnection(
+                    config.getHost(),
+                    config.getUser(),
+                    config.getPasswordPath() != null ? CredentialUtils.readPasswordPath(config.getPasswordPath()) : null,
+                    config.getShare()
+            );
+            return closeConnection(client);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    public static SMBClient openConnection(String host, String username, String password, String share)
+        throws IOException, Exception , HostUnreachableException {
+
+        Objects.requireNonNull(host, "host is required");
+        Objects.requireNonNull(share, "share is required");
+
+        if (!NetworkUtils.isPortOpen(host, PORT, CONNECT_TIMEOUT_MS))
+            throw new HostUnreachableException(host);
+
+        SMBClient client = new SMBClient();
+
+        try (Connection connection = client.connect(host)) {
+
+            AuthenticationContext ac = new AuthenticationContext(
+                    username != null ? username : "",
+                    password != null ? password.toCharArray() : new char[0],
+                    null
+            );
+
+            Session session = connection.authenticate(ac);
+
+            try (DiskShare disk = (DiskShare) session.connectShare(share)) {
+                disk.list("");  
+                return client;
+            } catch (Exception ex) {
+                throw new Exception("Couldn't open share " + share + " on host " + host, ex);
+            }
+
+        } catch (IOException ex) {
+            throw new Exception("Couldn't connect to remote SMB server", ex);
+        } catch (Exception ex) {
+            throw new Exception("Authentication failed", ex);
+        }
+    }
+
+    public static boolean closeConnection(SMBClient client)  {
+        try {
+            if (client != null) client.close();
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    } 
+}
+
+src/main/java/utils/connection/ConnectionHandlerResolver.java
+package utils.connection;
+
+import config.user_config.storage_config.StorageConfigModel;
+
+public class ConnectionHandlerResolver {
+
+    public static ConnectionHandler getHandler(StorageConfigModel config) {
+        switch (config.getType()) {
+            case SMB:
+                return new SMBConnectionHandler();
+            case SFTP:
+                return new SFTPConnectionHandler();
+            case NFS:
+                return new NFSConnectionHandler();
+            case CLOUD:
+                return new CloudConnectionHandler();
+            default:
+                throw new UnsupportedOperationException(
+                        "Unsupported Operation: " + config.getType()
+                );
+        }
+    }
+}
+
+src/main/java/utils/Queues.java
+package utils;
+
+import java.nio.file.Path;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
+public final class Queues {
+    public static final BlockingQueue<Path> COMPRESSED_QUEUE = new ArrayBlockingQueue<>(256);
+    public static final BlockingQueue<Path> ENCRYPTED_QUEUE = new ArrayBlockingQueue<>(256);
+    public static final BlockingQueue<Path> DECRYPTED_QUEUE = new ArrayBlockingQueue<>(256);
+    public static final Path POISON = Path.of("__POISON__");
+}
+
+src/main/java/utils/encdecrypt/DecryptorService.java
+package utils.encdecrypt;
+
+import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import utils.Logger;
+import utils.Queues;
+
+
+  
+public class DecryptorService {
+    private final int workerCount;
+    private final ExecutorService workers;
+
+    public DecryptorService(int workerCount) {
+        this.workerCount = Math.max(1, workerCount);
+        this.workers = Executors.newFixedThreadPool(this.workerCount);
+    }
+
+    public void start() throws Exception {
+        for (int i = 0; i < workerCount; i++) {
+            workers.submit(() -> {
+                try {
+                    while (true) {
+                        Path encrypted = Queues.ENCRYPTED_QUEUE.take();
+                        if (encrypted.equals(Queues.POISON)) {
+                            Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
+                            Queues.DECRYPTED_QUEUE.put(Queues.POISON);
+                            break;
+                        }
+
+                        try {
+                            Path decrypted = EncryptionAdapter.decrypt(encrypted);
+                            Queues.DECRYPTED_QUEUE.put(decrypted);
+                        } catch (Exception ex) {
+                            Logger.log("Error", "decryption", ex.getMessage());
+                        }
+                    }
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+    }
+
+    public void stop() throws InterruptedException {
+        workers.shutdown();
+        if (!workers.awaitTermination(1, TimeUnit.MINUTES)) {
+            workers.shutdownNow();
+        }
+    }
+}
+
+src/main/java/utils/encdecrypt/EncrypterService.java
+package utils.encdecrypt;
+
+import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import utils.Logger;
+import utils.Queues;
+import storage.StorageManager;
+
+public class EncrypterService {
+
+    private final int workerCount;
+    private final ExecutorService workers;
+    private boolean running = false;
+
+    public EncrypterService(int workerCount) {
+        this.workerCount = workerCount;
+        this.workers = Executors.newFixedThreadPool(workerCount);
+    }
+
+    public void start() {
+        for (int i = 0; i < workerCount; i++) {
+            workers.submit(() -> {
+                try {
+                    while (true) {
+                        Path compressed = Queues.COMPRESSED_QUEUE.take();
+                        if (compressed.equals(Queues.POISON)) break;
+
+                        try {
+                            Path encrypted = EncryptionAdapter.encrypt(compressed);
+                            System.out.println(encrypted.getFileName() + " Encrypted");
+                            Queues.ENCRYPTED_QUEUE.put(encrypted);
+                        } catch (Exception ex) {
+                            Logger.log("Error", "encryption", ex.getMessage());
+                        }
+                    }
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+    }
+
+    public void stop() throws InterruptedException {
+        for (int i = 0; i < workerCount; i++) {
+
+            Queues.COMPRESSED_QUEUE.put(Queues.POISON);
+        }
+
+        workers.shutdown();
+        workers.awaitTermination(1, TimeUnit.HOURS);
+
+        for (int i = 0; i < StorageManager.workerCount; i++) {
+
+            Queues.ENCRYPTED_QUEUE.put(Queues.POISON);
+        }
+    }
+
+}
+
+src/main/java/utils/encdecrypt/EncryptionHandler.java
+package utils.encdecrypt;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.SecretKey;
+import java.nio.file.*;
+import java.security.SecureRandom;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Objects;
+import java.util.Base64;
+
+import utils.compdecomp.FileUtils;
+
+
+public final class EncryptionHandler implements Encryptable {
+    private static final int IV_LENGTH = 12;
+    private static final int GCM_TAG_LENGTH_BITS = 128;
+
+    private final SecretKey key;
+
+    public EncryptionHandler(byte[] keyBytes) {
+        Objects.requireNonNull(keyBytes);
+        this.key = new SecretKeySpec(keyBytes, "AES");
+    }
+
+    public static EncryptionHandler fromBase64Key(String base64Key) {
+        byte[] keyBytes = Base64.getDecoder().decode(base64Key);
+        return new EncryptionHandler(keyBytes);
+    }
+
+    @Override
+    public Path encryptFile(Path sourceFile, Path destDir) throws IOException {
+        Objects.requireNonNull(sourceFile);
+        Objects.requireNonNull(destDir);
+
+        if (!Files.isRegularFile(sourceFile)) {
+            throw new IllegalArgumentException("Source must be a file: " + sourceFile);
+        }
+
+        try {
+            FileUtils.ensureDir(destDir);
+        } catch (IOException e) {
+            throw new IOException("Cannot create dest dir: " + destDir, e);
+        }
+
+        String base = sourceFile.getFileName().toString();
+        Path temp = FileUtils.tempFile(destDir, base + "_enc", ".tmp");
+        Path target = destDir.resolve(base + ".enc");
+
+        byte[] iv = new byte[IV_LENGTH];
+        SecureRandom rnd = new SecureRandom();
+        rnd.nextBytes(iv);
+
+        try (InputStream in = Files.newInputStream(sourceFile);
+             OutputStream fout = Files.newOutputStream(temp)) {
+
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
+            cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+
+            fout.write(iv);
+
+            try (java.security.DigestOutputStream ignored = null) {
+                try (javax.crypto.CipherOutputStream cos = new javax.crypto.CipherOutputStream(fout, cipher)) {
+                    in.transferTo(cos);
+                }
+            }
+        } catch (Exception ex) {
+            try { Files.deleteIfExists(temp); } catch (IOException ignored) {}
+            throw new IOException("Encryption failed", ex);
+        }
+
+        Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        return target;
+    }
+
+    @Override
+    public Path decryptFile(Path encryptedFile, Path destDir) throws IOException {
+        Objects.requireNonNull(encryptedFile);
+        Objects.requireNonNull(destDir);
+
+        if (!Files.isRegularFile(encryptedFile)) {
+            throw new IllegalArgumentException("Encrypted file must be a file: " + encryptedFile);
+        }
+
+        FileUtils.ensureDir(destDir);
+
+        String name = encryptedFile.getFileName().toString();
+        String outName = name.endsWith(".enc") ? name.substring(0, name.length() - 4)  : name ;
+        Path temp = FileUtils.tempFile(destDir, outName, ".tmp");
+        Path target = destDir.resolve(outName);
+
+        byte[] iv = new byte[IV_LENGTH];
+
+        try (InputStream fin = Files.newInputStream(encryptedFile)) {
+            int read = fin.read(iv);
+            if (read != IV_LENGTH) throw new IOException("Invalid encrypted file (IV missing)");
+
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
+            cipher.init(Cipher.DECRYPT_MODE, key, spec);
+
+            try (javax.crypto.CipherInputStream cis = new javax.crypto.CipherInputStream(fin, cipher);
+                 OutputStream out = Files.newOutputStream(temp)) {
+                cis.transferTo(out);
+            }
+        } catch (Exception ex) {
+            try { Files.deleteIfExists(temp); } catch (IOException ignored) {}
+            throw new IOException("Decryption failed", ex);
+        }
+
+        Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        return target;
+    }
+}
+
+src/main/java/utils/encdecrypt/Encryptable.java
+package utils.encdecrypt;
+
+import java.nio.file.Path;
+import java.io.IOException;
+
+public interface Encryptable {
+    Path encryptFile(Path sourceFile, Path destDir) throws Exception;
+    Path decryptFile(Path encryptedFile, Path destDir) throws Exception;
+}
+
+src/main/java/utils/encdecrypt/EncryptionAdapter.java
+package utils.encdecrypt;
+
+import java.nio.file.Path;
+import java.util.Objects;
+
+
+
+public final class EncryptionAdapter {
+    private static volatile Encryptable handler;
+
+    private EncryptionAdapter() {}
+
+    public static void setHandler(Encryptable h) {
+        handler = Objects.requireNonNull(h);
+    }
+
+    public static Path encrypt(Path compressedFile) throws Exception {
+        if (handler == null) throw new IllegalStateException("Encryption handler not configured");
+        return handler.encryptFile(compressedFile, compressedFile.getParent());
+    }
+
+    public static Path decrypt(Path encryptedFile) throws Exception {
+        if (handler == null) throw new IllegalStateException("Encryption handler not configured");
+        return handler.decryptFile(encryptedFile, encryptedFile.getParent());
+    }
+}
+
+src/main/java/utils/SessionManager.java
+package utils;
+
+import java.io.*;
+
+public final class SessionManager{ // make all the methods static bc i need to shure them all over the project and creating instatnce doesn make sense 
+    private static String PATH = "session_storage.txt";
+
+    public static void startSession(String username) throws IOException {
+        try ( FileWriter fw = new FileWriter(PATH) ){
+            fw.write(username + System.lineSeparator());
+
+        }
+
+    }
+
+    public static boolean isLoggedIn(String username) throws IOException {
+        String name ;
+        try (BufferedReader br = new BufferedReader( new FileReader(PATH)) ) {  
+            name = br.readLine();
+        }
+
+        if (name == null || !name.equals(username)) {
+            return false;
+        }
+
+        return true; 
+    }
+
+    public static String who() throws FileNotFoundException, IOException {
+        String name;
+        try (BufferedReader br = new BufferedReader( new FileReader(PATH)) ) {
+            name = br.readLine();
+
+        }
+
+        return name; 
+
+    }
+
+    public static void endSession() throws IOException {
+        try ( FileWriter fw = new FileWriter(PATH) ) {
+            fw.write("");// because append is false by default this will clear the line
+        }
+    }
+}
+src/main/java/utils/manifest/ManifestEntry.java
+package utils.manifest;
+
+import java.nio.file.Path;
+
+public record ManifestEntry(
+        Path original,
+        String hash,
+        long originalSize,
+        String at
+
+) {}
+
+src/main/java/utils/manifest/ManifestDisplay.java
+package utils.manifest;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class ManifestDisplay {
+
+    public static void display()  {
+        try {
+        Path manifestFile = Path.of("backup_workspace/temp/archive/manifest.json");
+        if (!Files.exists(manifestFile)) {
+            System.out.println("Manifest file not found!");
+            return;
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(manifestFile.toFile());
+        JsonNode entries = root.get("entries");
+
+        if (entries == null || !entries.isArray()) {
+            System.out.println("No entries in manifest.");
+            return;
+        }
+
+        System.out.printf("%-50s %-12s %-30s%n", "FILENAME", "SIZE", "TIMESTAMP");
+        System.out.println("-------------------------------------------------------------------------------------");
+
+        for (JsonNode entry : entries) {
+            String original = entry.get("original").asText();
+            long size = entry.get("originalSize").asLong();
+            String time = entry.has("at") ? entry.get("at").asText() : "";
+
+            System.out.printf(
+                "%-50s %-12s %-30s%n",
+                Path.of(original).getFileName().toString(),
+                humanReadableSize(size),
+                time
+            );
+        }
+    } catch (IOException ex){
+        System.out.println("Error: " + ex);
+    }
+
+    }
+    private static String humanReadableSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        char pre = "KMGTPE".charAt(exp - 1);
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+}
+
+src/main/java/utils/manifest/ManifestBuilder.java
+package utils.manifest;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.net.URI;
+
+import backup.BackupModel;
+
+public class ManifestBuilder {
+
+    private final List<ManifestEntry> entries = new ArrayList<>();
+    private final Path manifestFile;
+    private final BackupModel.Type backupType;
+    private final ZonedDateTime timestamp;
+
+    public ManifestBuilder(Path manifestDir, BackupModel.Type backupType) throws IOException {
+        this.backupType = backupType;
+        this.timestamp = ZonedDateTime.now();
+
+        Files.createDirectories(manifestDir);
+        this.manifestFile = manifestDir.resolve("manifest.json");
+
+        loadExistingManifest();
+    }
+
+    private void loadExistingManifest() {
+        if (!Files.exists(manifestFile)) return;
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(manifestFile.toFile());
+            JsonNode arr = root.get("entries");
+
+            if (arr != null && arr.isArray()) {
+                for (JsonNode node : arr) {
+                    String originalText = node.get("original").asText();
+                    URI uri = URI.create(originalText);
+                    Path originalPath = Paths.get(uri);
+
+                    ManifestEntry entry = new ManifestEntry(
+                            originalPath,
+                            node.get("hash").asText(),
+                            node.get("originalSize").asLong(),
+                            node.get("at").asText()
+                    );
+                    entries.add(entry);
+                }
+            }
+        } catch (Exception ex) {
+            System.out.println("Failed to load existing manifest: " + ex.getMessage());
+        }
+    }
+
+    public synchronized void addEntry(ManifestEntry entry) {
+        entries.removeIf(e -> e.hash().equals(entry.hash()));
+        entries.add(entry);
+    }
+
+    public synchronized void save() throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+        var manifestObject = new ManifestRoot(
+                backupType,
+                timestamp.toString(),
+                entries
+        );
+
+        mapper.writeValue(manifestFile.toFile(), manifestObject);
+    }
+
+    public synchronized List<ManifestEntry> getLoadedEntries() {
+        return new ArrayList<>(entries); 
+    }
+
+    public record ManifestRoot(
+            BackupModel.Type backupType,
+            String timestamp,
+            List<ManifestEntry> entries
+    ) {}
+}
+
+src/main/java/main/Help.java
+package main;
+
+public class Help {
+    public static void display(){
+        System.out.println("""
+                ============================================================
+                                        BACKUP SYSTEM
+                ============================================================
+
+                Secure, modular command-line backup utility.
+
+                Designed for reliable data protection using compression,
+                encryption, and multiple storage backends.
+
+                ------------------------------------------------------------
+                USAGE
+                ------------------------------------------------------------
+                backup <command> [options]
+
+                ------------------------------------------------------------
+                COMMANDS
+                ------------------------------------------------------------
+                init
+                Initialize the backup workspace and configuration files.
+
+                backup
+                Run a backup operation using the current configuration.
+
+                restore
+                Restore files from an existing backup archive.
+
+                status
+                Display information about existing backups and workspace
+                health.
+
+                config
+                View or modify application configuration.
+
+                help
+                Show this help message.
+
+                ------------------------------------------------------------
+                BACKUP PIPELINE
+                ------------------------------------------------------------
+                1. File discovery
+                2. Compression (gzip)
+                3. Encryption (AES-based)
+                4. Storage to target location
+                5. Manifest generation and verification
+
+                ------------------------------------------------------------
+                SUPPORTED STORAGE TARGETS
+                ------------------------------------------------------------
+                • Local filesystem
+                • External / mounted devices
+                • SFTP remote servers
+
+                ------------------------------------------------------------
+                SECURITY FEATURES
+                ------------------------------------------------------------
+                • Encrypted backup archives
+                • SHA-256 integrity verification
+                • Password-based key derivation
+                • Manifest-based recovery
+
+        Welcome.display();
+                ------------------------------------------------------------
+                WORKSPACE LAYOUT
+                ------------------------------------------------------------
+                ./backup_workspace/
+                ├── config.yaml
+                ├── backups/
+                ├── manifests/
+                └── temp/
+
+                ------------------------------------------------------------
+                EXAMPLES
+                ------------------------------------------------------------
+                Initialize workspace:
+                backup init
+
+                Run a backup:
+                backup backup
+
+                Restore files:
+                backup restore
+
+                Check status:
+                backup status
+
+                ------------------------------------------------------------
+                ============================================================
+                """
+                );
+    }
+}
+src/main/java/main/App.java
+package main;
+
+import java.io.IOException;
+import java.io.FileNotFoundException;
+import java.sql.SQLException;
+
+import backup.*;
+import recovery.*;
+import utils.manifest.ManifestDisplay;
+import utils.SessionManager;
+import user.*;
+import utils.Logger;
+import exception.userservice.*;
+
+public class App {
+
+    public static void main(String[] args) {
+
+        Welcome.display();
+
+        if (args.length == 0) {
+            Help.display();
+            return;
+        }
+
+        String command = args[0];
+
+        try {
+            switch (command) {
+
+                case "init":
+                    init();
+                    break;
+
+                case "user":
+                    handleUser(args);
+                    break;
+
+                case "backup":
+                    handleBackup(args);
+                    break;
+
+                case "recover":
+                    handleRecovery(args);
+                    break;
+
+                case "status":
+                    ManifestDisplay.display();
+                    break;
+
+                case "help":
+                case "--help":
+                    Help.display();
+                    break;
+
+                default:
+                    System.out.println("Unknown command: " + command);
+                    Help.display();
+            }
+
+        } catch(UserNotFoundException e) {
+            System.out.println(e.getMessage());
+            Logger.log("ERROR","user-service", e.getMessage());
+        } catch (SQLException e) {
+            printSqlError(e);
+        } catch (IOException e) {
+            System.err.println("I/O error: " + e.getMessage());
+            Logger.log("ERROR", "io", e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            Logger.log("ERROR", "general", e.getMessage());
+        } finally {
+            try {
+            if (SessionManager.who() != null) {
+                SessionManager.endSession();
+            }
+            } catch (FileNotFoundException e){
+                Logger.log("ERROR", "session", e.getMessage());
+            } catch (IOException e){
+                Logger.log("ERROR", "session", e.getMessage());
+            }
+
+        }
+    }
+
+
+    private static void init() throws SQLException {
+         new UserService() ;
+        System.out.println("SecureBackupSuite initialized.");
+    }
+
+
+    private static void handleUser(String[] args)
+            throws SQLException, IOException, UserNotFoundException {
+
+        if (args.length < 2) {
+            System.out.println("Missing user command.");
+            return;
+        }
+
+        UserService userService = new UserService();
+
+        if ("update".equals(args[1])) {
+            for (int i = 2; i < args.length; i++) {
+                switch (args[i]) {
+                    case "-c":
+                        userService.createNewUser();
+                        return;
+                    case "-u":
+                        userService.updateUsername(args[++i]);
+                        break;
+                    case "-p":
+                        userService.updatePassword(args[++i]);
+                        break;
+                    case "-e":
+                        userService.updateEmail(args[++i]);
+                        break;
+                    default:
+                        throw new IllegalArgumentException(
+                                "Invalid option: " + args[i]);
+                }
+            }
+        } else {
+            throw new IllegalArgumentException(
+                    "Unknown user command: " + args[1]);
+        }
+    }
+
+
+    private static void handleBackup(String[] args)
+            throws Exception {
+
+        if (args.length < 2) {
+            System.out.println("Missing backup command.");
+            return;
+        }
+
+        ensureLogin();
+
+        Backupable service = null;
+
+        switch (args[1]) {
+
+            case "full":
+                Backup.backup(
+                        BackupModel.Type.FULL);
+                service.backup();
+                break;
+
+            case "incremental":
+                service = BackupServiceResolver.getService(
+                        BackupModel.Type.INCREMENTAL);
+                service.backup();
+                break;
+
+            case "stop":
+                BackupDaemon.stop();
+                System.out.println("Backup stopped.");
+                break;
+
+            default:
+                throw new IllegalArgumentException(
+                        "Invalid backup command: " + args[1]);
+        }
+    }
+
+
+    private static void handleRecovery(String[] args)
+            throws Exception {
+
+        if (args.length < 2) {
+            System.out.println("Missing recovery command.");
+            return;
+        }
+
+        ensureLogin();
+
+        Recoveryable service;
+
+        switch (args[1]) {
+
+            case "full":
+                service = RecoveryServiceResolver.getService(
+                        RecoveryModel.Type.FULL);
+                service.recover();
+                break;
+
+            case "selective":
+                service = RecoveryServiceResolver.getService(
+                        RecoveryModel.Type.SELECTIVE);
+                service.recover();
+                break;
+
+            default:
+                throw new IllegalArgumentException(
+                        "Invalid recovery command: " + args[1]);
+        }
+    }
+
+
+    private static void ensureLogin()
+            throws IOException , SQLException , UserNotFoundException ,InvalidCredentialsException {
+        if (SessionManager.who() == null) {
+            String username = user.UserUI.takeUsername();
+            UserService userService = new UserService();
+
+            userService.userLoggin(username);
+            SessionManager.startSession(username);
+        }
+    }
+
+
+    private static void printSqlError(SQLException e) {
+
+        System.err.println("Database error occurred:");
+
+        SQLException ex = e;
+        while (ex != null) {
+            System.err.println("Message   : " + ex.getMessage());
+            System.err.println("SQLState  : " + ex.getSQLState());
+            System.err.println("ErrorCode : " + ex.getErrorCode());
+            System.err.println("----------------------------------");
+
+            Logger.log(
+                "SQL_ERROR",
+                "database",
+                "Message=" + ex.getMessage() +
+                ", SQLState=" + ex.getSQLState() +
+                ", Code=" + ex.getErrorCode()
+            );
+
+            ex = ex.getNextException();
+        }
+    }
+}
+
+src/main/java/main/Welcome.java
+package main;
+
+
+public class Welcome{
+    public static void display() {
+        System.out.println("""
+                ============================================================
+                                        BACKUP SYSTEM
+                ============================================================
+
+                Welcome.
+
+                Backup System is a secure, modular command-line application
+                designed to protect your data through reliable backups.
+
+                It supports a full backup pipeline:
+                • File discovery
+                • Compression
+                • Encryption
+                • Storage to local or remote targets
+
+                ------------------------------------------------------------
+                SUPPORTED STORAGE
+                ------------------------------------------------------------
+                • Local filesystem
+                • External / mounted devices
+                • SMB network shares
+                • SFTP remote servers
+
+                ------------------------------------------------------------
+                SECURITY
+                ------------------------------------------------------------
+                • Encrypted backup archives
+                • SHA-256 file integrity verification
+                • Manifest-based tracking and recovery
+
+                ------------------------------------------------------------
+                USAGE
+                ------------------------------------------------------------
+                backup <command> [options]
+
+                COMMON COMMANDS
+                ------------------------------------------------------------
+                init        Initialize workspace and configuration
+                backup      Run a backup operation
+                restore     Restore files from backup
+                status      Show backup status
+                config      View or edit configuration
+                help        Show help and command details
+
+                ------------------------------------------------------------
+                WORKSPACE
+                ------------------------------------------------------------
+                ./backup_workspace/
+
+                ============================================================
+                """);         
+
+    }
+}
+src/main/java/exception/userservice/UsernameExistsException.java
+package exception.userservice;
+
+public class UsernameExistsException extends Exception {
+    public UsernameExistsException() {
+        super("username found. Use another username or try Login.");
+    }
+}
+src/main/java/exception/userservice/InvalidUsernameException.java
+package exception.userservice;
+
+public class InvalidUsernameException extends Exception {
+    public InvalidUsernameException(){
+        super("Invalid username can't be to short or to long.");
+    }
+}
+src/main/java/exception/userservice/InvalidPasswordException.java
+package exception.userservice;
+
+public class InvalidPasswordException extends Exception {
+    public InvalidPasswordException() {
+        super("Password must be 8 charchter or longer.");
+    }
+}
+src/main/java/exception/userservice/EmailExistsException.java
+package exception.userservice;
+
+public class EmailExistsException extends Exception {
+    public EmailExistsException() { // bc in java when exception is to be printed it uses the getMessage() here we we pass message to it
+        super("Subscription found. Use another email or try Login.");
+    }
+}
+src/main/java/exception/userservice/InvalidEmailFormatException.java
+package exception.userservice;
+
+public class InvalidEmailFormatException extends Exception {
+    public InvalidEmailFormatException() {
+        super("Invalid Email format.");
+    }
+}
+src/main/java/exception/userservice/UserNotFoundException.java
+package exception.userservice;
+
+public class UserNotFoundException extends Exception {
+    public UserNotFoundException(){
+        super("No associated acount found with the given username.");
+    }
+}
+src/main/java/exception/userservice/InvalidCredentialsException.java
+package exception.userservice;
+
+public class InvalidCredentialsException extends Exception {
+    public InvalidCredentialsException() {
+        super("Invalid username or passoword.");
+    }
+}
+src/main/java/exception/connecion/ShareNotFoundException.java
+package exception.connection;
+
+public class ShareNotFoundException extends ConnectionTestException {
+    public ShareNotFoundException(String msg, Exception cause){
+        super(msg, cause);
+
+    }
+}
+src/main/java/exception/connecion/HostUnreachableException.java
+package exception.connection;
+
+public class HostUnreachableException extends ConnectionTestException {
+    public HostUnreachableException(String host){
+        super("unable to reach host: " + host);
+
+    }
+
+    public HostUnreachableException(String host,Exception cause){
+        super("unable to reach host: " + host, cause);
+
+    }
+}
+src/main/java/exception/connecion/ConnectionTestException.java
+package exception.connection;
+
+public class ConnectionTestException extends Exception {
+    public ConnectionTestException(String msg, Exception cause) {
+        super(msg, cause);
+    }
+
+    public ConnectionTestException(String msg) {
+        super(msg);
+    }
+}
+src/main/java/exception/connecion/AuthFailedException.java
+package exception.connection;
+
+public class AuthFailedException extends ConnectionTestException {
+    public AuthFailedException(String msg){
+        super(msg);
+
+    }
+
+    public AuthFailedException(String msg, Exception cause){
+        super(msg, cause);
+
+    }
+}

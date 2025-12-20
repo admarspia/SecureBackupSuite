@@ -32,8 +32,10 @@ public class BackupDaemon implements Runnable {
                 }
 
                 if (!running) break;
-
+                
+                System.out.println("before backup");
                 controller.runBackup();
+                System.out.println("Afeter backup");
                 ConfigService.lastRun = ZonedDateTime.now(ConfigService.zone);
 
                 Logger.log(
