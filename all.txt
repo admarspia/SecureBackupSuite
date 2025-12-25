@@ -534,9 +534,6 @@ public class UserModel {
     }
 
 }
-src/main/java/packages/monitoring/MonitoringService.java
-src/main/java/packages/monitoring/MonitoringController.java
-src/main/java/packages/monitoring/MonitoringLog.java
 src/main/java/packages/storage/StorageManager.java
 package storage;
 
@@ -591,6 +588,21 @@ public class StorageManager {
 }
 
 src/main/java/packages/storage/CloudStorageWriter.java
+package storage;
+
+
+
+import config.user_config.storage_config.StorageConfigModel;
+import java.nio.file.Path;
+import java.io.IOException;
+
+public class CloudStorageWriter implements StorageWriter {
+    // implementetion on version 2 
+    @Override
+    public void write(StorageConfigModel config, Path file) throws IOException {
+    }
+}
+
 src/main/java/packages/storage/SFTPStorageWriter.java
 package storage;
 
@@ -787,6 +799,21 @@ public class SFTPStorageReader implements StorageReader {
 }
 
 src/main/java/packages/storage/NFSStorageWriter.java
+package storage;
+
+
+
+import config.user_config.storage_config.StorageConfigModel;
+import java.nio.file.Path;
+import java.io.IOException;
+
+public class NFSStorageWriter implements StorageWriter {
+    // implementetion on version 2 
+    @Override
+    public void write(StorageConfigModel config, Path file) throws IOException {
+    }
+}
+
 src/main/java/packages/storage/LocalStorageReader.java
 package storage;
 
@@ -830,7 +857,7 @@ import java.nio.file.Path;
 import java.io.IOException;
 
 public class SMBStorageWriter implements StorageWriter {
-
+    // implementetion on version 2 
     @Override
     public void write(StorageConfigModel config, Path file) throws IOException {
     }
@@ -897,6 +924,7 @@ import config.user_config.storage_config.ConfigService;
 
 import storage.LocalStorageReader;
 import storage.SFTPStorageReader;
+import utils.Logger;
 
 public class FullRecoveryService implements Recoveryable {
     int workers = 3;
@@ -966,6 +994,7 @@ public class FullRecoveryService implements Recoveryable {
         FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
         FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
         FileUtils.cleanup(Path.of("backup_workspace/temp/recovery_download"));
+        Logger.log("SUCCESS", "recovery", "recovery completed successfuly.");
     }
 
 }
@@ -992,6 +1021,8 @@ public class RecoveryController<T extends Recoveryable> {
 
 src/main/java/packages/recovery/Recovery.java
 package recovery;
+import utils.compdecomp.FileUtils;
+import java.nio.file.Path;
 
 public class Recovery {
     public static void recover(RecoveryModel.Type type) {
@@ -1003,6 +1034,9 @@ public class Recovery {
             System.out.println("Recovery daemon running...");
         } catch (Exception ex) {
             System.out.println("Error: " + ex);
+            FileUtils.cleanup(Path.of("backup_workspace/temp/decrypted"));
+            FileUtils.cleanup(Path.of("backup_workspace/temp/compressed"));
+            FileUtils.cleanup(Path.of("backup_workspace/temp/recovery_download"));
         }
     }
 }
@@ -1031,6 +1065,7 @@ import storage.LocalStorageReader;
 import storage.SFTPStorageReader;
 
 import user.UserUI;
+import utils.Logger;
 
 public class SelectiveRecoveryService implements Recoveryable {
 
@@ -1046,7 +1081,7 @@ public class SelectiveRecoveryService implements Recoveryable {
     @Override
     public void recover() throws Exception {
 
-        UserUI.receiveTargetFilename();
+        //UserUI.receiveTargetFilename();
 
         Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery_selective/");
         FileUtils.ensureDir(recoveryWorkspace);
@@ -1113,6 +1148,8 @@ public class SelectiveRecoveryService implements Recoveryable {
         System.out.println("Temporary directories cleaned up.");
 
         System.out.println("Selective recovery completed at " + recoveryWorkspace);
+        Logger.log("SUCCESS", "recovery", "recovery completed successfuly.");
+
     }
 }
 
@@ -2385,12 +2422,6 @@ public class DbConfig {
     }
 }
 
-src/main/java/config/app_config/DefaultStoragePolicy.java
-src/main/java/config/app_config/RecoveryPolicyConfig.java
-src/main/java/config/app_config/LoggingConfig.java
-src/main/java/config/app_config/SecurityConfig.java
-src/main/java/config/app_config/SystemCriticalFilesConfig.java
-
 src/main/java/config/YamlLoader.java
 package config;
 
@@ -3473,41 +3504,83 @@ public class ManifestDisplay {
 
     public static void display()  {
         try {
-        Path manifestFile = Path.of("backup_workspace/temp/archive/manifest.json");
-        if (!Files.exists(manifestFile)) {
-            System.out.println("Manifest file not found!");
-            return;
+            Path manifestFile = Path.of("backup_workspace/temp/archive/manifest.json");
+            if (!Files.exists(manifestFile)) {
+                System.out.println("Manifest file not found!");
+                return;
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(manifestFile.toFile());
+            JsonNode entries = root.get("entries");
+
+            if (entries == null || !entries.isArray()) {
+                System.out.println("No entries in manifest.");
+                return;
+            }
+
+            System.out.printf("%-50s %-12s %-30s%n", "FILENAME", "SIZE", "TIMESTAMP");
+            System.out.println("-------------------------------------------------------------------------------------");
+
+            for (JsonNode entry : entries) {
+                String original = entry.get("original").asText();
+                long size = entry.get("originalSize").asLong();
+                String time = entry.has("at") ? entry.get("at").asText() : "";
+
+                System.out.printf(
+                        "%-50s %-12s %-30s%n",
+                        Path.of(original).getFileName().toString(),
+                        humanReadableSize(size),
+                        time
+                        );
+            }
+        } catch (IOException ex){
+            System.out.println("Error: " + ex);
         }
 
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(manifestFile.toFile());
-        JsonNode entries = root.get("entries");
-
-        if (entries == null || !entries.isArray()) {
-            System.out.println("No entries in manifest.");
-            return;
-        }
-
-        System.out.printf("%-50s %-12s %-30s%n", "FILENAME", "SIZE", "TIMESTAMP");
-        System.out.println("-------------------------------------------------------------------------------------");
-
-        for (JsonNode entry : entries) {
-            String original = entry.get("original").asText();
-            long size = entry.get("originalSize").asLong();
-            String time = entry.has("at") ? entry.get("at").asText() : "";
-
-            System.out.printf(
-                "%-50s %-12s %-30s%n",
-                Path.of(original).getFileName().toString(),
-                humanReadableSize(size),
-                time
-            );
-        }
-    } catch (IOException ex){
-        System.out.println("Error: " + ex);
     }
 
+    public static java.util.List<ManifestEntry> getEntries() {
+        java.util.List<ManifestEntry> result = new java.util.ArrayList<>();
+
+        try {
+            Path manifestFile = Path.of("backup_workspace/temp/archive/manifest.json");
+            if (!Files.exists(manifestFile)) {
+                return result;
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(manifestFile.toFile());
+            JsonNode entriesNode = root.get("entries");
+
+            if (entriesNode == null || !entriesNode.isArray()) {
+                return result;
+            }
+
+            for (JsonNode node : entriesNode) {
+                Path originalPath = Path.of(node.get("original").asText());
+                String hash = node.get("hash").asText();
+                long size = node.get("originalSize").asLong();
+                String time = node.has("at") ? node.get("at").asText() : "";
+
+                ManifestEntry entry = new ManifestEntry(
+                        originalPath,
+                        hash,
+                        size,
+                        time
+                        );
+
+                result.add(entry);
+            }
+
+        } catch (Exception ex) {
+            // Status must never crash
+            System.err.println("Manifest read failed: " + ex.getMessage());
+        }
+
+        return result;
     }
+
     private static String humanReadableSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
@@ -3703,6 +3776,180 @@ public class Help {
                 );
     }
 }
+src/main/java/main/report/LogAnalyzer.java
+package main.report;
+
+import java.nio.file.*;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class LogAnalyzer {
+    
+    private static final Path LOG_FILE = Path.of("backup_system.log");
+    private static final DateTimeFormatter LOG_TIME_FORMATTER = 
+        DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS");
+    
+    public static LogReport generateReport() {
+        LogReport report = new LogReport();
+        
+        try {
+            List<String> lines = Files.readAllLines(LOG_FILE);
+            
+            for (String line : lines) {
+                if (line == null || line.trim().isEmpty()) {
+                    continue;
+                }
+                
+                String[] parts = line.split("\\|");
+                if (parts.length < 4) {
+                    continue;
+                }
+                
+                LogEntry entry = new LogEntry();
+                entry.status = parts[0].trim();
+                entry.source = parts[1].trim();
+                entry.message = parts[2].trim();
+                entry.timestamp = parts[3].trim();
+                
+                report.addEntry(entry);
+            }
+            
+            report.analyze();
+            
+        } catch (IOException e) {
+            System.err.println("Error reading log file: " + e.getMessage());
+        }
+        
+        return report;
+    }
+    
+    public static class LogEntry {
+        String status;
+        String source;
+        String message;
+        String timestamp;
+       
+        public String getStatus() { return status; }
+        public String getSource() { return source; }
+        public String getMessage() { return message; }
+        public String getTimestamp() { return timestamp; }
+
+        public boolean isSuccess() {
+            return status.equalsIgnoreCase("SUCCESS");
+        }
+        
+        public boolean isError() {
+            return status.equalsIgnoreCase("ERROR");
+        }
+        
+        public boolean isWarning() {
+            return status.equalsIgnoreCase("WARNING");
+        }
+        
+        public LocalDateTime getDateTime() {
+            try {
+                // Extract date from message if available
+                if (message.contains("at ")) {
+                    String dateStr = message.substring(message.indexOf("at ") + 3);
+                    return LocalDateTime.parse(dateStr.replace("+03:00[Africa/Addis_Ababa]", ""));
+                }
+                return LocalDateTime.now(); // Fallback
+            } catch (Exception e) {
+                return LocalDateTime.now();
+            }
+        }
+    }
+    
+    public static class LogReport {
+        private List<LogEntry> entries = new ArrayList<>();
+        private Map<String, Integer> statusCount = new HashMap<>();
+        private Map<String, Integer> sourceCount = new HashMap<>();
+        private Map<String, Integer> errorSources = new HashMap<>();
+        private List<LogEntry> errors = new ArrayList<>();
+        private List<LogEntry> successes = new ArrayList<>();
+        private Map<String, Integer> messageFrequency = new HashMap<>();
+        private LocalDateTime startTime;
+        private LocalDateTime endTime;
+        private int totalEntries = 0;
+        private int successCount = 0;
+        private int errorCount = 0;
+        
+        public void addEntry(LogEntry entry) {
+            entries.add(entry);
+            totalEntries++;
+            
+            // Update status count
+            statusCount.merge(entry.status.toUpperCase(), 1, Integer::sum);
+            
+            // Update source count
+            sourceCount.merge(entry.source.toLowerCase(), 1, Integer::sum);
+            
+            // Track errors
+            if (entry.isError()) {
+                errorCount++;
+                errors.add(entry);
+                errorSources.merge(entry.source, 1, Integer::sum);
+            } else if (entry.isSuccess()) {
+                successCount++;
+                successes.add(entry);
+            }
+            
+            // Track message frequency
+            String keyMessage = entry.message.length() > 50 ? 
+                entry.message.substring(0, 50) + "..." : entry.message;
+            messageFrequency.merge(keyMessage, 1, Integer::sum);
+            
+            // Update time range
+            LocalDateTime entryTime = entry.getDateTime();
+            if (startTime == null || entryTime.isBefore(startTime)) {
+                startTime = entryTime;
+            }
+            if (endTime == null || entryTime.isAfter(endTime)) {
+                endTime = entryTime;
+            }
+        }
+        
+        public void analyze() {
+            // Additional analysis can be done here
+        }
+        
+        // Getters
+        public List<LogEntry> getEntries() { return entries; }
+        public Map<String, Integer> getStatusCount() { return statusCount; }
+        public Map<String, Integer> getSourceCount() { return sourceCount; }
+        public Map<String, Integer> getErrorSources() { return errorSources; }
+        public List<LogEntry> getErrors() { return errors; }
+        public List<LogEntry> getSuccesses() { return successes; }
+        public Map<String, Integer> getMessageFrequency() { return messageFrequency; }
+        public LocalDateTime getStartTime() { return startTime; }
+        public LocalDateTime getEndTime() { return endTime; }
+        public int getTotalEntries() { return totalEntries; }
+        public int getSuccessCount() { return successCount; }
+        public int getErrorCount() { return errorCount; }
+        
+        public double getSuccessRate() {
+            return totalEntries > 0 ? (successCount * 100.0) / totalEntries : 0;
+        }
+        
+        public String getMostActiveSource() {
+            return sourceCount.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("N/A");
+        }
+        
+        public String getMostCommonError() {
+            return errorSources.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("N/A");
+        }
+    }
+}
 src/main/java/main/App.java
 package main;
 
@@ -3719,9 +3966,7 @@ import utils.Logger;
 import exception.userservice.*;
 
 public class App {
-
-    public static void main(String[] args) {
-
+    public static void runCli(String[] args) {
         Welcome.display();
 
         if (args.length == 0) {
@@ -3733,37 +3978,17 @@ public class App {
 
         try {
             switch (command) {
-
-                case "init":
-                    init();
-                    break;
-
-                case "user":
-                    handleUser(args);
-                    break;
-
-                case "backup":
-                    handleBackup(args);
-                    break;
-
-                case "recover":
-                    handleRecovery(args);
-                    break;
-
-                case "status":
-                    ManifestDisplay.display();
-                    break;
-
-                case "help":
-                case "--help":
-                    Help.display();
-                    break;
-
-                default:
+                case "init" -> init();
+                case "user" -> handleUser(args);
+                case "backup" -> handleBackup(args);
+                case "recover" -> handleRecovery(args);
+                case "status" -> ManifestDisplay.display();
+                case "help", "--help" -> Help.display();
+                default -> {
                     System.out.println("Unknown command: " + command);
                     Help.display();
+                }
             }
-
         } catch(UserNotFoundException e) {
             System.out.println(e.getMessage());
             Logger.log("ERROR","user-service", e.getMessage());
@@ -3787,6 +4012,7 @@ public class App {
             }
 
         }
+
     }
 
 
@@ -4001,6 +4227,1140 @@ public class Welcome{
 
     }
 }
+src/main/java/main/gui/AppIcon.java
+package main.gui;
+
+import javafx.scene.image.Image;
+import javafx.stage.Stage;
+
+public class AppIcon {
+    private static final Image ICON =
+        new Image(AppIcon.class.getResource("/10109861.png").toExternalForm());
+
+    public static void apply(Stage stage) {
+        stage.getIcons().add(ICON);
+    }
+}
+
+src/main/java/main/gui/Louncher.java
+src/main/java/main/gui/HandleClose.java
+package main.gui;
+
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.stage.Stage;
+
+public class HandleClose implements EventHandler<ActionEvent> {
+
+    private final Stage stage;
+
+    public HandleClose(Stage stage) {
+        this.stage = stage;
+    }
+
+    @Override
+    public void handle(ActionEvent event) {
+        if (stage.isShowing()) {
+            stage.close();
+        }
+    }
+}
+
+src/main/java/main/gui/Header.java
+package main.gui;
+
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.Scene;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import javafx.stage.Modality;
+import javafx.scene.control.TableView;
+import javafx.scene.control.SelectionMode;
+import utils.manifest.*;
+
+import backup.Backup;
+import backup.BackupModel;
+import recovery.Recovery;
+import recovery.RecoveryModel;
+import recovery.SelectiveRecoveryService;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+public class Header {
+
+    public static HBox getHeader() {
+        Button btnWelcome = new Button("Welcome");
+        Button btnStatus = new Button("Status");
+        Button btnLogs = new Button("Logs");
+        Button btnHelp = new Button("Help");
+        Button btnConfig = new Button("Configure");
+
+        ComboBox<String> backupCombo = new ComboBox<>();
+        ComboBox<String> recoveryCombo = new ComboBox<>();
+
+        // Navigation buttons - use NavigationManager
+        btnWelcome.setOnAction(e -> NavigationManager.navigateToWelcome());
+        btnStatus.setOnAction(e -> NavigationManager.navigateToStatus());
+        btnLogs.setOnAction(e -> NavigationManager.navigateToLogs());
+        btnHelp.setOnAction(e -> NavigationManager.navigateToHelp());
+
+        backupCombo.getItems().addAll("Full-Backup", "Incremental", "Predictive");
+        recoveryCombo.getItems().addAll("Full-Recovery", "Selective-Recovery");
+
+        backupCombo.setPromptText("Select Backup Type");
+        recoveryCombo.setPromptText("Select Recovery Type");
+       
+        backupCombo.getStyleClass().add("prompt-styled");
+        recoveryCombo.getStyleClass().add("prompt-styled");
+
+        Stage backupPopup = new Stage();
+        backupPopup.initModality(Modality.APPLICATION_MODAL);
+        backupPopup.initOwner(NavigationManager.getPrimaryStage());
+        backupPopup.setTitle("Confirm Backup");
+        Button backupOk = new Button("Backup");
+        Button backupCancel = new Button("Cancel");
+        VBox backupRoot = new VBox(10, new Label("Do you want to make a backup?"),
+                new HBox(20, backupOk, backupCancel));
+        backupRoot.setPadding(new javafx.geometry.Insets(20));
+        backupPopup.setScene(new Scene(backupRoot, 300, 150));
+        backupCancel.setOnAction(e -> backupPopup.close());
+
+        // Recovery Confirmation Popup
+        Stage recoveryPopup = new Stage();
+        recoveryPopup.initModality(Modality.APPLICATION_MODAL);
+        recoveryPopup.initOwner(NavigationManager.getPrimaryStage());
+        recoveryPopup.setTitle("Confirm Recovery");
+        Button recoveryOk = new Button("Recover");
+        Button recoveryCancel = new Button("Cancel");
+        VBox recoveryRoot = new VBox(10, new Label("Do you want to make a recovery?"),
+                new HBox(20, recoveryOk, recoveryCancel));
+        recoveryRoot.setPadding(new javafx.geometry.Insets(20));
+        recoveryPopup.setScene(new Scene(recoveryRoot, 300, 150));
+        recoveryCancel.setOnAction(e -> recoveryPopup.close());
+
+        // Selective Recovery Popup - CREATE FRESH INSTANCE EACH TIME
+        // We'll create the dialog when needed, not at initialization
+        Stage selectiveStage = null;
+        TableView<ManifestEntry> selectiveTable = null;
+
+        // Backup Combo Action
+        backupCombo.setOnAction(e -> {
+            String selected = backupCombo.getValue();
+            if (selected != null) {
+                backupPopup.show();
+                backupOk.setOnAction(ok -> {
+                    switch (selected) {
+                        case "Full-Backup" -> Backup.backup(BackupModel.Type.FULL);
+                        case "Incremental" -> Backup.backup(BackupModel.Type.INCREMENTAL);
+                        case "Predictive" -> System.out.println("Predictive backup coming soon.");
+                    }
+                    backupPopup.close();
+                    backupCombo.getSelectionModel().clearSelection();
+                });
+            }
+        });
+
+        // Recovery Combo Action
+        recoveryCombo.setOnAction(e -> {
+            String selected = recoveryCombo.getValue();
+            if (selected != null) {
+                if ("Selective-Recovery".equals(selected)) {
+                    // Create fresh selective recovery dialog each time
+                    showSelectiveRecoveryDialog();
+                } else {
+                    // Show confirmation for full recovery
+                    recoveryPopup.show();
+                    recoveryOk.setOnAction(ok -> {
+                        if ("Full-Recovery".equals(selected)) {
+                            Recovery.recover(RecoveryModel.Type.FULL);
+                        }
+                        recoveryPopup.close();
+                        recoveryCombo.getSelectionModel().clearSelection();
+                    });
+                }
+            }
+        });
+
+        // Configure Button Action
+        btnConfig.setOnAction(e -> {
+            try {
+                File configFile = new File("config.yaml");
+                if (!configFile.exists()) {
+                    System.out.println("Config file not found.");
+                    return;
+                }
+
+                String os = System.getProperty("os.name").toLowerCase();
+                if (os.contains("win")) {
+                    new ProcessBuilder("notepad.exe", configFile.getAbsolutePath()).start();
+                } else if (os.contains("mac")) {
+                    new ProcessBuilder("open", configFile.getAbsolutePath()).start();
+                } else { 
+                    new ProcessBuilder("xdg-open", configFile.getAbsolutePath()).start();
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        // In Header.java, add report button
+        Button btnReport = new Button("Report");
+        btnReport.setOnAction(e -> NavigationManager.navigateToReport());
+
+
+        HBox header = new HBox(10, 
+                btnWelcome, btnStatus, btnReport, backupCombo, recoveryCombo, 
+                btnLogs, btnHelp, btnConfig
+                );
+
+        header.getStyleClass().add("header");
+        header.setPadding(new javafx.geometry.Insets(15));
+
+        return header;
+    }
+    
+    // Helper method to create selective recovery dialog
+    private static void showSelectiveRecoveryDialog() {
+        // Create fresh table instance for this dialog
+        TableView<ManifestEntry> filesTable = StatusView.createSelectiveRecoveryTable();
+        
+        Stage selectiveStage = new Stage();
+        selectiveStage.initModality(Modality.APPLICATION_MODAL);
+        selectiveStage.initOwner(NavigationManager.getPrimaryStage());
+        selectiveStage.setTitle("Selective Recovery");
+        
+        Button selectiveRecoverOk = new Button("Recover Selected");
+        Button selectiveRecoverCancel = new Button("Cancel");
+        
+        selectiveRecoverCancel.setOnAction(e -> selectiveStage.close());
+        
+        VBox selectiveLayout = new VBox(10, 
+            new Label("Select Files to Recover"),
+            filesTable, 
+            new HBox(20, selectiveRecoverOk, selectiveRecoverCancel)
+        );
+        selectiveLayout.setPadding(new javafx.geometry.Insets(20));
+        
+        selectiveRecoverOk.setOnAction(e -> {
+            var selectedFiles = filesTable.getSelectionModel().getSelectedItems();
+            if (!selectedFiles.isEmpty()) {
+                Map<String, String> targetMap = new HashMap<>();
+                for (ManifestEntry entry : selectedFiles) {
+                    String[] fullPath = entry.original().toString().split("\\/");
+                    String filename = fullPath[fullPath.length - 1];
+                    targetMap.put(filename, entry.at());
+                    System.out.println(entry.original().toString() + " " + entry.at());
+                }
+                SelectiveRecoveryService.setTarget(targetMap);
+                try {
+                    Recovery.recover(RecoveryModel.Type.SELECTIVE);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+                selectiveStage.close();
+            }
+        });
+        
+        Scene selectiveScene = new Scene(selectiveLayout, 900, 600);
+        selectiveStage.setScene(selectiveScene);
+        selectiveStage.show();
+    }
+}
+src/main/java/main/gui/NavigationManager.java
+package main.gui;
+
+import javafx.scene.Scene;
+import javafx.scene.layout.BorderPane;
+import javafx.stage.Stage;
+
+public class NavigationManager {
+    private static Stage primaryStage;
+    private static BorderPane rootLayout;
+    
+    public static void initialize(Stage stage) {
+        primaryStage = stage;
+        rootLayout = new BorderPane();
+        
+        rootLayout.setTop(Header.getHeader());
+        
+        Scene mainScene = new Scene(rootLayout, 1200, 700);
+        mainScene.getStylesheets().add(
+            NavigationManager.class.getResource("/styles/app.css").toExternalForm()
+        );
+        
+        stage.setScene(mainScene);
+        stage.setTitle("Backup System");
+        AppIcon.apply(stage);
+        stage.show();
+        
+        navigateToWelcome();
+    }
+    
+    // Add report navigation
+    public static void navigateToReport() {
+        rootLayout.setCenter(main.gui.report.ReportView.getContent());
+        primaryStage.setTitle("System Report - Backup System");
+    }
+    
+    public static void navigateToWelcome() {
+        rootLayout.setCenter(WelcomeView.getContent());
+        primaryStage.setTitle("Welcome - Backup System");
+    }
+    
+    public static void navigateToStatus() {
+        rootLayout.setCenter(StatusView.getContent());
+        primaryStage.setTitle("Status - Backup System");
+    }
+    
+    public static void navigateToLogs() {
+        rootLayout.setCenter(LogView.getContent());
+        primaryStage.setTitle("Logs - Backup System");
+    }
+    
+    public static void navigateToHelp() {
+        rootLayout.setCenter(HelpView.getContent());
+        primaryStage.setTitle("Help - Backup System");
+    }
+    
+    public static Stage getPrimaryStage() {
+        return primaryStage;
+    }
+    
+    public static BorderPane getRootLayout() {
+        return rootLayout;
+    }
+}
+src/main/java/main/gui/StatusView.java
+package main.gui;
+
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.beans.property.SimpleStringProperty;
+import utils.manifest.ManifestEntry;
+import utils.manifest.ManifestDisplay;
+import java.util.List;
+
+public class StatusView {
+    
+    public static VBox getContent() {
+        VBox content = new VBox(10);
+        content.setPadding(new javafx.geometry.Insets(20));
+        
+        Label title = new Label("Backup Status");
+        Label subtitle = new Label("View all backed up files and their details");
+        
+        TableView<ManifestEntry> table = createStatusTable();
+        content.getChildren().addAll(title, subtitle, table);
+        return content;
+    }
+    
+    public static TableView<ManifestEntry> createStatusTable() {
+        return createTableView();
+    }
+    
+    public static TableView<ManifestEntry> createSelectiveRecoveryTable() {
+        TableView<ManifestEntry> table = createTableView();
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        return table;
+    }
+    
+    private static TableView<ManifestEntry> createTableView() {
+        List<ManifestEntry> manifestList = ManifestDisplay.getEntries();
+        ObservableList<ManifestEntry> data = FXCollections.observableArrayList(manifestList);
+        
+        TableView<ManifestEntry> table = new TableView<>(data);
+        
+        // FIX: Disable the extra empty column
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        
+        TableColumn<ManifestEntry, String> fileCol = new TableColumn<>("File Name");
+        fileCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().original().toString()));
+        
+        TableColumn<ManifestEntry, String> hashCol = new TableColumn<>("Hash");
+        hashCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().hash()));
+        
+        TableColumn<ManifestEntry, String> sizeCol = new TableColumn<>("Size");
+        sizeCol.setCellValueFactory(c -> new SimpleStringProperty(
+            String.valueOf(c.getValue().originalSize()) + " bytes"
+        ));
+        
+        TableColumn<ManifestEntry, String> dateCol = new TableColumn<>("Date");
+        dateCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().at()));
+        
+        table.getColumns().addAll(fileCol, hashCol, sizeCol, dateCol);
+        table.setPrefWidth(1000);
+        table.setPrefHeight(500);
+        
+        return table;
+    }
+}
+src/main/java/main/gui/LogView.java
+package main.gui;
+
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.beans.property.SimpleStringProperty;
+import java.nio.file.*;
+import java.io.IOException;
+import java.util.List;
+
+public class LogView {
+    
+    public static VBox getContent() {
+        ObservableList<Log> logs = parseLogs();
+        TableView<Log> table = createLogTable(logs);
+        
+        VBox content = new VBox(10);
+        content.getStyleClass().add("card");
+        content.setPadding(new javafx.geometry.Insets(20));
+        
+        Label title = new Label("System Logs");
+        title.getStyleClass().add("title");
+        
+        Label subtitle = new Label("Complete log for backup and recovery operations");
+        subtitle.getStyleClass().add("subtitle");
+        
+        content.getChildren().addAll(title, subtitle, table);
+        return content;
+    }
+    
+    private static TableView<Log> createLogTable(ObservableList<Log> logs) {
+        TableView<Log> table = new TableView<>(logs);
+        
+        // FIX: Disable the extra empty column
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        
+        TableColumn<Log, String> statusCol = new TableColumn<>("Status");
+        statusCol.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getStatus()));
+        statusCol.setPrefWidth(100);
+        
+        TableColumn<Log, String> sourceCol = new TableColumn<>("Source");
+        sourceCol.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getSource()));
+        sourceCol.setPrefWidth(150);
+        
+        TableColumn<Log, String> msgCol = new TableColumn<>("Message");
+        msgCol.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getMsg()));
+        msgCol.setPrefWidth(400);
+        
+        TableColumn<Log, String> dateCol = new TableColumn<>("Date");
+        dateCol.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getDate()));
+        dateCol.setPrefWidth(150);
+        
+        table.getColumns().addAll(statusCol, sourceCol, msgCol, dateCol);
+        table.setPrefWidth(1100);
+        table.setPrefHeight(500);
+        
+        return table;
+    }
+    
+    private static ObservableList<Log> parseLogs() {
+        ObservableList<Log> logs = FXCollections.observableArrayList();
+        Path logFile = Path.of("backup_system.log");
+        
+        if (!Files.exists(logFile)) {
+            Log noLogs = new Log();
+            noLogs.setStatus("INFO");
+            noLogs.setSource("System");
+            noLogs.setMsg("No log file found");
+            noLogs.setDate("-");
+            logs.add(noLogs);
+            return logs;
+        }
+        
+        try {
+            List<String> lines = Files.readAllLines(logFile);
+            for (String line : lines) {
+                if (line == null || line.isBlank()) continue;
+                String[] tokens = line.split("\\|");
+                if (tokens.length < 4) continue;
+                
+                Log log = new Log();
+                log.setStatus(tokens[0].trim());
+                log.setSource(tokens[1].trim());
+                log.setMsg(tokens[2].trim());
+                log.setDate(tokens[3].trim());
+                logs.add(log);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+        
+        return logs;
+    }
+}
+
+class Log {
+    private String status;
+    private String source;
+    private String msg;
+    private String date;
+
+    public String getStatus() { return status; }
+    public String getSource() { return source; }
+    public String getMsg() { return msg; }
+    public String getDate() { return date; }
+
+    public void setStatus(String status) { this.status = status; }
+    public void setSource(String source) { this.source = source; }
+    public void setMsg(String msg) { this.msg = msg; }
+    public void setDate(String date) { this.date = date; }
+}
+src/main/java/main/gui/WelcomeView.java
+package main.gui;
+
+import javafx.scene.control.Label;
+import javafx.scene.layout.*;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import main.report.LogAnalyzer;
+import main.report.LogAnalyzer.LogReport;
+
+public class WelcomeView {
+    
+    public static VBox getContent() {
+        LogReport report = LogAnalyzer.generateReport();
+        
+        VBox mainContainer = new VBox(20);
+        mainContainer.setPadding(new Insets(30));
+        
+        // Header
+        Label title = new Label("Backup System Dashboard");
+        title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        
+        // Stats Section
+        HBox statsSection = createStatsSection(report);
+        
+        // Recent Activity
+        VBox recentActivity = createRecentActivity(report);
+        
+        mainContainer.getChildren().addAll(title, statsSection, recentActivity);
+        return mainContainer;
+    }
+    
+    private static HBox createStatsSection(LogReport report) {
+        HBox statsContainer = new HBox(15);
+        statsContainer.setAlignment(Pos.CENTER);
+        
+        VBox totalOps = createStatCard("Total Operations", 
+            String.valueOf(report.getTotalEntries()));
+        VBox successCard = createStatCard("Success Rate", 
+            String.format("%.1f%%", report.getSuccessRate()));
+        VBox errorCard = createStatCard("Errors", 
+            String.valueOf(report.getErrorCount()));
+        VBox activeSource = createStatCard("Active Source", 
+            report.getMostActiveSource());
+        
+        statsContainer.getChildren().addAll(totalOps, successCard, errorCard, activeSource);
+        return statsContainer;
+    }
+    
+    private static VBox createStatCard(String title, String value) {
+        VBox card = new VBox(5);
+        card.setPadding(new Insets(15));
+        card.setStyle("-fx-background-color: white; -fx-background-radius: 8px; " +
+                     "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+        card.setPrefWidth(150);
+        card.setAlignment(Pos.CENTER);
+        
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #7f8c8d;");
+        
+        Label valueLabel = new Label(value);
+        valueLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+        
+        card.getChildren().addAll(titleLabel, valueLabel);
+        return card;
+    }
+    
+    private static VBox createRecentActivity(LogReport report) {
+        VBox container = new VBox(10);
+        container.setPadding(new Insets(20));
+        container.setStyle("-fx-background-color: white; -fx-background-radius: 8px; " +
+                          "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+        
+        Label sectionTitle = new Label("Recent Activity");
+        sectionTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+        
+        VBox activityList = new VBox(8);
+        
+        // Show last 5 entries
+        int startIndex = Math.max(0, report.getEntries().size() - 5);
+        for (int i = startIndex; i < report.getEntries().size(); i++) {
+            var entry = report.getEntries().get(i);
+            Label activity = new Label(String.format("[%s] %s - %s", 
+                entry.getTimestamp(), entry.getSource(), entry.getMessage()));
+            activity.setWrapText(true);
+            activity.setStyle("-fx-font-size: 13px; -fx-text-fill: #5d6d7e;");
+            activityList.getChildren().add(activity);
+        }
+        
+        container.getChildren().addAll(sectionTitle, activityList);
+        return container;
+    }
+}
+src/main/java/main/gui/ReportView.java
+package main.gui.report;
+
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.geometry.Insets;
+import javafx.scene.chart.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import main.report.LogAnalyzer;
+import main.report.LogAnalyzer.LogReport;
+import main.report.LogAnalyzer.LogEntry;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.paint.Color;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+import javafx.geometry.Pos;
+
+public class ReportView {
+    
+    public static ScrollPane getContent() {
+        VBox mainContainer = new VBox(20);
+        mainContainer.setPadding(new Insets(30));
+        mainContainer.getStyleClass().add("report-container");
+        
+        // Generate report
+        LogReport report = LogAnalyzer.generateReport();
+        
+        // Header
+        HBox header = createHeader(report);
+        
+        // Stats Cards
+        HBox statsSection = createStatsSection(report);
+        
+        // Charts Section
+        HBox chartsSection = createChartsSection(report);
+        
+        // Error Analysis
+        VBox errorSection = createErrorSection(report);
+        
+        // Source Analysis
+        VBox sourceSection = createSourceSection(report);
+        
+        // Recent Activity
+        VBox recentActivity = createRecentActivitySection(report);
+        
+        
+        mainContainer.getChildren().addAll(
+            header,
+            statsSection,
+            chartsSection,
+            errorSection,
+            sourceSection,
+            recentActivity 
+        );
+        
+        // Wrap in ScrollPane
+        ScrollPane scrollPane = new ScrollPane(mainContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        
+        return scrollPane;
+    }
+    
+    private static HBox createHeader(LogReport report) {
+        HBox header = new HBox(20);
+        header.setAlignment(Pos.CENTER_LEFT);
+        
+        Label title = new Label("System Report & Analytics");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setTextFill(Color.web("#2c3e50"));
+        
+        Label subtitle = new Label("Generated from backup system logs");
+        subtitle.setTextFill(Color.web("#7f8c8d"));
+        subtitle.setFont(Font.font(14));
+        
+        VBox textBox = new VBox(5, title, subtitle);
+        
+        Label dateLabel = new Label(getDateRange(report));
+        dateLabel.setTextFill(Color.web("#3498db"));
+        dateLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        
+        header.getChildren().addAll(textBox, dateLabel);
+        HBox.setHgrow(textBox, Priority.ALWAYS);
+        
+        return header;
+    }
+    
+    private static String getDateRange(LogReport report) {
+        if (report.getStartTime() == null || report.getEndTime() == null) {
+            return "Date range: N/A";
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+        return String.format("%s - %s", 
+            report.getStartTime().format(formatter),
+            report.getEndTime().format(formatter));
+    }
+    
+    private static HBox createStatsSection(LogReport report) {
+        HBox statsContainer = new HBox(15);
+        statsContainer.setAlignment(Pos.CENTER);
+        
+        VBox totalOpsCard = createStatCard("Total Operations", 
+            String.valueOf(report.getTotalEntries()), "#3498db");
+        
+        VBox successCard = createStatCard("Success Rate", 
+            String.format("%.1f%%", report.getSuccessRate()), "#2ecc71");
+        
+        VBox errorCard = createStatCard("Errors", 
+            String.valueOf(report.getErrorCount()), "#e74c3c");
+        
+        VBox activeSourceCard = createStatCard("Most Active Source", 
+            report.getMostActiveSource(), "#9b59b6");
+        
+        statsContainer.getChildren().addAll(totalOpsCard, successCard, errorCard, activeSourceCard);
+        return statsContainer;
+    }
+    
+    private static VBox createStatCard(String title, String value, String color) {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("stat-card");
+        card.setPadding(new Insets(20));
+        card.setPrefWidth(180);
+        card.setAlignment(Pos.CENTER);
+        
+        Label titleLabel = new Label(title);
+        titleLabel.getStyleClass().add("stat-title");
+        titleLabel.setTextFill(Color.web("#7f8c8d"));
+        
+        Label valueLabel = new Label(value);
+        valueLabel.getStyleClass().add("stat-value");
+        valueLabel.setTextFill(Color.web(color));
+        valueLabel.setFont(Font.font("System", FontWeight.BOLD, 22));
+        
+        card.getChildren().addAll(titleLabel, valueLabel);
+        return card;
+    }
+    
+    private static HBox createChartsSection(LogReport report) {
+        HBox chartsContainer = new HBox(20);
+        chartsContainer.setAlignment(Pos.CENTER);
+        
+        // Pie Chart for Status Distribution
+        VBox pieChartBox = new VBox(10);
+        pieChartBox.setPadding(new Insets(20));
+        pieChartBox.getStyleClass().add("chart-card");
+        
+        Label pieTitle = new Label("Status Distribution");
+        pieTitle.getStyleClass().add("chart-title");
+        
+        PieChart statusChart = createStatusPieChart(report);
+        statusChart.setPrefSize(300, 250);
+        
+        pieChartBox.getChildren().addAll(pieTitle, statusChart);
+        
+        // Bar Chart for Source Activity
+        VBox barChartBox = new VBox(10);
+        barChartBox.setPadding(new Insets(20));
+        barChartBox.getStyleClass().add("chart-card");
+        
+        Label barTitle = new Label("Source Activity");
+        barTitle.getStyleClass().add("chart-title");
+        
+        BarChart<String, Number> sourceChart = createSourceBarChart(report);
+        sourceChart.setPrefSize(400, 250);
+        
+        barChartBox.getChildren().addAll(barTitle, sourceChart);
+        
+        chartsContainer.getChildren().addAll(pieChartBox, barChartBox);
+        return chartsContainer;
+    }
+    
+    private static PieChart createStatusPieChart(LogReport report) {
+        ObservableList<PieChart.Data> pieChartData = FXCollections.observableArrayList();
+        
+        for (Map.Entry<String, Integer> entry : report.getStatusCount().entrySet()) {
+            String status = entry.getKey();
+            int count = entry.getValue();
+            
+            PieChart.Data data = new PieChart.Data(status + " (" + count + ")", count);
+            pieChartData.add(data);
+        }
+        
+        PieChart chart = new PieChart(pieChartData);
+        chart.setLabelsVisible(true);
+        chart.setLegendVisible(false);
+        
+        return chart;
+    }
+    
+    private static BarChart<String, Number> createSourceBarChart(LogReport report) {
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        BarChart<String, Number> barChart = new BarChart<>(xAxis, yAxis);
+        
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("Operations by Source");
+        
+        // Get top 5 sources
+        report.getSourceCount().entrySet().stream()
+            .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+            .limit(5)
+            .forEach(entry -> 
+                series.getData().add(new XYChart.Data<>(entry.getKey(), entry.getValue()))
+            );
+        
+        barChart.getData().add(series);
+        barChart.setLegendVisible(false);
+        barChart.setAnimated(false);
+        
+        return barChart;
+    }
+    
+    private static VBox createErrorSection(LogReport report) {
+        VBox errorContainer = new VBox(15);
+        errorContainer.setPadding(new Insets(25));
+        errorContainer.getStyleClass().add("section-card");
+        
+        Label title = new Label("Error Analysis");
+        title.getStyleClass().add("section-title");
+        title.setFont(Font.font("System", FontWeight.BOLD, 20));
+        
+        if (report.getErrors().isEmpty()) {
+            Label noErrors = new Label("No errors found in the logs.");
+            noErrors.setTextFill(Color.web("#7f8c8d"));
+            errorContainer.getChildren().addAll(title, noErrors);
+            return errorContainer;
+        }
+        
+        // Error Summary
+        HBox summaryBox = new HBox(20);
+        summaryBox.setAlignment(Pos.CENTER_LEFT);
+        
+        Label errorCountLabel = new Label("Total Errors: " + report.getErrorCount());
+        errorCountLabel.setTextFill(Color.web("#e74c3c"));
+        
+        Label commonErrorLabel = new Label("Most Common: " + report.getMostCommonError());
+        commonErrorLabel.setTextFill(Color.web("#7f8c8d"));
+        
+        summaryBox.getChildren().addAll(errorCountLabel, commonErrorLabel);
+        
+        // Error List
+        VBox errorList = new VBox(10);
+        
+        report.getErrors().stream()
+            .limit(5)
+            .forEach(error -> {
+                HBox errorItem = new HBox(10);
+                errorItem.setPadding(new Insets(10));
+                errorItem.getStyleClass().add("error-item");
+                
+                Label sourceLabel = new Label(error.getSource());
+                sourceLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #e74c3c;");
+                
+                Label messageLabel = new Label(error.getMessage());
+                messageLabel.setTextFill(Color.web("#5d6d7e"));
+                messageLabel.setWrapText(true);
+                
+                Label timeLabel = new Label(error.getTimestamp());
+                timeLabel.setTextFill(Color.web("#95a5a6"));
+                timeLabel.setFont(Font.font(12));
+                
+                errorItem.getChildren().addAll(sourceLabel, messageLabel, timeLabel);
+                HBox.setHgrow(messageLabel, Priority.ALWAYS);
+                
+                errorList.getChildren().add(errorItem);
+            });
+        
+        Button viewAllErrors = new Button("View All Errors");
+        viewAllErrors.getStyleClass().add("view-all-btn");
+        viewAllErrors.setOnAction(e -> showAllErrors(report));
+        
+        errorContainer.getChildren().addAll(title, summaryBox, errorList, viewAllErrors);
+        return errorContainer;
+    }
+    
+    private static VBox createSourceSection(LogReport report) {
+        VBox sourceContainer = new VBox(15);
+        sourceContainer.setPadding(new Insets(25));
+        sourceContainer.getStyleClass().add("section-card");
+        
+        Label title = new Label("Source Breakdown");
+        title.getStyleClass().add("section-title");
+        title.setFont(Font.font("System", FontWeight.BOLD, 20));
+        
+        TableView<SourceStat> sourceTable = new TableView<>();
+        
+        TableColumn<SourceStat, String> sourceCol = new TableColumn<>("Source");
+        sourceCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().source));
+        sourceCol.setPrefWidth(150);
+        
+        TableColumn<SourceStat, Integer> countCol = new TableColumn<>("Operations");
+        countCol.setCellValueFactory(data -> new javafx.beans.property.SimpleIntegerProperty(data.getValue().count).asObject());
+        countCol.setPrefWidth(100);
+        
+        TableColumn<SourceStat, String> percentageCol = new TableColumn<>("Percentage");
+        percentageCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+            String.format("%.1f%%", (data.getValue().count * 100.0) / report.getTotalEntries())
+        ));
+        percentageCol.setPrefWidth(100);
+        
+        sourceTable.getColumns().addAll(sourceCol, countCol, percentageCol);
+        
+        ObservableList<SourceStat> sourceData = FXCollections.observableArrayList();
+        report.getSourceCount().entrySet().stream()
+            .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+            .forEach(entry -> sourceData.add(new SourceStat(entry.getKey(), entry.getValue())));
+        
+        sourceTable.setItems(sourceData);
+        sourceTable.setPrefHeight(200);
+        
+        sourceContainer.getChildren().addAll(title, sourceTable);
+        return sourceContainer;
+    }
+    
+    private static class SourceStat {
+        String source;
+        int count;
+        
+        SourceStat(String source, int count) {
+            this.source = source;
+            this.count = count;
+        }
+    }
+    
+    private static VBox createRecentActivitySection(LogReport report) {
+        VBox activityContainer = new VBox(15);
+        activityContainer.setPadding(new Insets(25));
+        activityContainer.getStyleClass().add("section-card");
+        
+        Label title = new Label("Recent Activity");
+        title.getStyleClass().add("section-title");
+        title.setFont(Font.font("System", FontWeight.BOLD, 20));
+        
+        VBox activityList = new VBox(10);
+        
+        // Show last 10 entries
+        report.getEntries().stream()
+            .skip(Math.max(0, report.getEntries().size() - 10))
+            .forEach(entry -> {
+                HBox activityItem = new HBox(10);
+                activityItem.setPadding(new Insets(8));
+                activityItem.getStyleClass().add("activity-item");
+                
+                VBox details = new VBox(3);
+                
+                HBox header = new HBox(10);
+                header.setAlignment(Pos.CENTER_LEFT);
+                
+                Label sourceLabel = new Label(entry.getSource());
+                sourceLabel.setStyle("-fx-font-weight: bold;");
+                
+                Label timeLabel = new Label(entry.getTimestamp());
+                timeLabel.setTextFill(Color.web("#7f8c8d"));
+                timeLabel.setFont(Font.font(12));
+                
+                header.getChildren().addAll(sourceLabel, timeLabel);
+                
+                Label messageLabel = new Label(entry.getMessage());
+                messageLabel.setTextFill(Color.web("#5d6d7e"));
+                messageLabel.setWrapText(true);
+                
+                details.getChildren().addAll(header, messageLabel);
+                HBox.setHgrow(details, Priority.ALWAYS);
+                
+                activityItem.getChildren().addAll(details);
+                activityList.getChildren().add(activityItem);
+            });
+        
+        activityContainer.getChildren().addAll(title, activityList);
+        return activityContainer;
+    }
+    
+    
+    private static void showAllErrors(LogReport report) {
+        Stage errorStage = new Stage();
+        errorStage.setTitle("All System Errors");
+        
+        VBox container = new VBox(20);
+        container.setPadding(new Insets(30));
+        
+        Label title = new Label("All Error Logs (" + report.getErrorCount() + " errors)");
+        title.setFont(Font.font("System", FontWeight.BOLD, 24));
+        
+        TableView<ErrorDetail> errorTable = new TableView<>();
+        
+        TableColumn<ErrorDetail, String> sourceCol = new TableColumn<>("Source");
+        sourceCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().source));
+        sourceCol.setPrefWidth(150);
+        
+        TableColumn<ErrorDetail, String> messageCol = new TableColumn<>("Error Message");
+        messageCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().message));
+        messageCol.setPrefWidth(400);
+        
+        TableColumn<ErrorDetail, String> timeCol = new TableColumn<>("Timestamp");
+        timeCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().timestamp));
+        timeCol.setPrefWidth(150);
+        
+        errorTable.getColumns().addAll(sourceCol, messageCol, timeCol);
+        
+        ObservableList<ErrorDetail> errorData = FXCollections.observableArrayList();
+        report.getErrors().forEach(error -> 
+            errorData.add(new ErrorDetail(error.getSource(), error.getMessage(), error.getTimestamp()))
+        );
+        
+        errorTable.setItems(errorData);
+        
+        container.getChildren().addAll(title, errorTable);
+        Scene scene = new Scene(new ScrollPane(container), 800, 600);
+        errorStage.setScene(scene);
+        errorStage.show();
+    }
+    
+    private static class ErrorDetail {
+        String source;
+        String message;
+        String timestamp;
+        
+        ErrorDetail(String source, String message, String timestamp) {
+            this.source = source;
+            this.message = message;
+            this.timestamp = timestamp;
+        }
+    }
+    
+}
+src/main/java/main/gui/HelpView.java
+package main.gui;
+
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.geometry.Insets;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+
+public class HelpView {
+    
+    public static ScrollPane getContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: #f8f9fa;");
+        
+        // Header
+        Label title = new Label("Backup System Help");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setTextFill(Color.web("#2c3e50"));
+        
+        Label subtitle = new Label("Documentation and usage guide");
+        subtitle.setTextFill(Color.web("#7f8c8d"));
+        subtitle.setFont(Font.font(14));
+        
+        VBox headerBox = new VBox(5, title, subtitle);
+        
+        // Content Sections
+        VBox sections = new VBox(25);
+        
+        sections.getChildren().addAll(
+            createSection("Usage", "backup <command> [options]"),
+            createSection("Commands", 
+                "• init: Initialize workspace and configuration\n" +
+                "• backup: Run backup operation\n" +
+                "• restore: Restore files from backup\n" +
+                "• status: Display backup status\n" +
+                "• config: View or modify configuration\n" +
+                "• help: Show this help page"),
+            createSection("Backup Pipeline",
+                "1. File discovery\n" +
+                "2. Compression (gzip)\n" +
+                "3. Encryption (AES-based)\n" +
+                "4. Storage to target location\n" +
+                "5. Manifest generation and verification"),
+            createSection("Storage Targets",
+                "• Local filesystem\n" +
+                "• External devices\n" +
+                "• SFTP servers"),
+            createSection("Security Features",
+                "• Encrypted backup archives\n" +
+                "• SHA-256 integrity verification\n" +
+                "• Password-based key derivation\n" +
+                "• Manifest-based recovery"),
+            createSection("Examples",
+                "Initialize workspace:\n  backup init\n\n" +
+                "Run a backup:\n  backup backup\n\n" +
+                "Restore files:\n  backup restore\n\n" +
+                "Check status:\n  backup status")
+        );
+        
+        content.getChildren().addAll(headerBox, sections);
+        
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        
+        return scrollPane;
+    }
+    
+    private static VBox createSection(String title, String content) {
+        VBox section = new VBox(10);
+        section.setPadding(new Insets(20));
+        section.setStyle("-fx-background-color: white; -fx-background-radius: 8px; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 8, 0, 0, 2);");
+        
+        Label titleLabel = new Label(title);
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        titleLabel.setTextFill(Color.web("#3498db"));
+        
+        Label contentLabel = new Label(content);
+        contentLabel.setTextFill(Color.web("#5d6d7e"));
+        contentLabel.setWrapText(true);
+        contentLabel.setLineSpacing(1.5);
+        
+        section.getChildren().addAll(titleLabel, contentLabel);
+        return section;
+    }
+}
+src/main/java/main/TestFx.java
+package main;
+
+import javafx.application.Application;
+import javafx.stage.Stage;
+import main.gui.NavigationManager;
+
+public class TestFx extends Application {
+
+    @Override
+    public void start(Stage stage) {
+        NavigationManager.initialize(stage);
+    }
+
+    public static void launchFx(String[] args) {
+        Application.launch(TestFx.class, args);
+    }
+}
+
+src/main/java/main/Launcher.java
+package main;
+
+public class Launcher {
+
+    public static void main(String[] args) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("gui")) {
+            TestFx.launchFx(args);
+        } else {
+            App.runCli(args);
+        }
+    }
+}
+
 src/main/java/exception/userservice/UsernameExistsException.java
 package exception.userservice;
 

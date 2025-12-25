@@ -37,7 +37,6 @@ public class SelectiveRecoveryService implements Recoveryable {
     @Override
     public void recover() throws Exception {
 
-        //UserUI.receiveTargetFilename();
 
         Path recoveryWorkspace = Path.of("backup_workspace/temp/recovery_selective/");
         FileUtils.ensureDir(recoveryWorkspace);
@@ -58,17 +57,17 @@ public class SelectiveRecoveryService implements Recoveryable {
         }
 
         List<Path> filesToRecover = new ArrayList<>();
-
         for (Map.Entry<String, String> entry : target.entrySet()) {
+
             String targetFilename = entry.getKey();
             String targetTimestamp = entry.getValue();
 
+
             for (Path file : Files.list(downloadDir).toList()) {
                 String filename = file.getFileName().toString();
-
+                System.out.println("File: " + filename + "targetFilename" + targetFilename + targetTimestamp);
                 if (
-                    filename.startsWith(targetFilename + "_") &&
-                    filename.endsWith(".gz.enc") &&
+                    filename.startsWith(targetFilename) &&
                     filename.contains(targetTimestamp)
                 ) {
                     filesToRecover.add(file);

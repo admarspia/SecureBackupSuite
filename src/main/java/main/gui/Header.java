@@ -7,9 +7,9 @@ import javafx.scene.Scene;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.stage.Modality;
 import javafx.scene.control.TableView;
 import javafx.scene.control.SelectionMode;
-import javafx.scene.control.CheckBox;
 import utils.manifest.*;
 
 import backup.Backup;
@@ -20,114 +20,100 @@ import recovery.SelectiveRecoveryService;
 
 import java.io.File;
 import java.io.IOException;
-import java.awt.Desktop;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Header {
 
     public static HBox getHeader() {
-
-        Button btnLogs = new Button("Logs");
+        Button btnWelcome = new Button("Welcome");
         Button btnStatus = new Button("Status");
+        Button btnLogs = new Button("Logs");
         Button btnHelp = new Button("Help");
         Button btnConfig = new Button("Configure");
 
         ComboBox<String> backupCombo = new ComboBox<>();
         ComboBox<String> recoveryCombo = new ComboBox<>();
 
-        backupCombo.getItems().addAll("Full-Backup", "Incremental", "Predictive");
+        // buttons for navigation 
+        btnWelcome.setOnAction(e -> NavigationManager.navigateToWelcome());
+        btnStatus.setOnAction(e -> NavigationManager.navigateToStatus());
+        btnLogs.setOnAction(e -> NavigationManager.navigateToLogs());
+        btnHelp.setOnAction(e -> NavigationManager.navigateToHelp());
+
+        backupCombo.getItems().addAll("Full-Backup", "Incremental");
         recoveryCombo.getItems().addAll("Full-Recovery", "Selective-Recovery");
 
+        backupCombo.setPromptText("Select Backup Type");
+        recoveryCombo.setPromptText("Select Recovery Type");
+       
+        backupCombo.getStyleClass().add("prompt-styled");
+        recoveryCombo.getStyleClass().add("prompt-styled");
+
         Stage backupPopup = new Stage();
+        backupPopup.initModality(Modality.APPLICATION_MODAL); //blocking every window until this is closed.
+
+        backupPopup.initOwner(NavigationManager.getPrimaryStage());
         backupPopup.setTitle("Confirm Backup");
         Button backupOk = new Button("Backup");
         Button backupCancel = new Button("Cancel");
         VBox backupRoot = new VBox(10, new Label("Do you want to make a backup?"),
                 new HBox(20, backupOk, backupCancel));
-        backupPopup.setScene(new Scene(backupRoot));
+        backupRoot.setPadding(new javafx.geometry.Insets(20));
+        backupPopup.setScene(new Scene(backupRoot, 300, 150));
         backupCancel.setOnAction(e -> backupPopup.close());
 
+        // creating recormry and config popup
         Stage recoveryPopup = new Stage();
+        recoveryPopup.initModality(Modality.APPLICATION_MODAL);
+        recoveryPopup.initOwner(NavigationManager.getPrimaryStage());
         recoveryPopup.setTitle("Confirm Recovery");
         Button recoveryOk = new Button("Recover");
         Button recoveryCancel = new Button("Cancel");
         VBox recoveryRoot = new VBox(10, new Label("Do you want to make a recovery?"),
                 new HBox(20, recoveryOk, recoveryCancel));
-        recoveryPopup.setScene(new Scene(recoveryRoot));
+        recoveryRoot.setPadding(new javafx.geometry.Insets(20));
+        recoveryPopup.setScene(new Scene(recoveryRoot, 300, 150));
         recoveryCancel.setOnAction(e -> recoveryPopup.close());
 
-        Stage selectiveStage = new Stage();
-        TableView<ManifestEntry> filesTable = Status.getStatusTable();
-
-        Button selectiveRecoverOk = new Button("Recover Selected");
-
-        Button selectiveRecoverCancel = new Button("Cancel");
-        selectiveRecoverCancel.setOnAction(e -> selectiveStage.close());
-        VBox selectiveLayout = new VBox(10, new Label("Select Files to Recover"),
-                filesTable, new HBox(20, selectiveRecoverOk, selectiveRecoverCancel));
-        Scene selectiveScene = new Scene(selectiveLayout, 800, 600);
-        selectiveStage.setTitle("Selective Recovery");
-        selectiveStage.setScene(selectiveScene);
-
-        selectiveRecoverOk.setOnAction(e -> {
-            var selectedFiles = filesTable.getSelectionModel().getSelectedItems();
-            if (!selectedFiles.isEmpty()) {
-                Map<String, String> targetMap = new HashMap<>();
-                for (ManifestEntry entry : selectedFiles) {
-                    String[] fullPath = entry.original().toString().split("\\/");
-                    String filename = fullPath[fullPath.length - 1];
-                    targetMap.put(filename, entry.at());
-                    System.out.println(entry.original().toString() + " " + entry.at());
-                }
-                SelectiveRecoveryService.setTarget(targetMap);
-                try {
-                    Recovery.recover(RecoveryModel.Type.SELECTIVE);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-                selectiveStage.close();
-            }
-        });
+        Stage selectiveStage = null;
+        TableView<ManifestEntry> selectiveTable = null;
 
         backupCombo.setOnAction(e -> {
             String selected = backupCombo.getValue();
-            backupPopup.show();
-            backupOk.setOnAction(ok -> {
-                switch (selected) {
-                    case "Full-Backup" -> Backup.backup(BackupModel.Type.FULL);
-                    case "Incremental" -> Backup.backup(BackupModel.Type.INCREMENTAL);
-                    case "Predictive" -> System.out.println("Predictive backup coming soon.");
-                }
-                backupPopup.close();
-            });
+            if (selected != null) {
+                backupPopup.show();
+                backupOk.setOnAction(ok -> {
+                    switch (selected) {
+                        case "Full-Backup" -> Backup.backup(BackupModel.Type.FULL);
+                        case "Incremental" -> Backup.backup(BackupModel.Type.INCREMENTAL);
+                    }
+                    backupPopup.close();
+                    backupCombo.getSelectionModel().clearSelection();
+                });
+            }
         });
 
+        // recovery combo
         recoveryCombo.setOnAction(e -> {
             String selected = recoveryCombo.getValue();
-            recoveryPopup.show();
-            recoveryOk.setOnAction(ok -> {
-                switch (selected) {
-                    case "Full-Recovery" -> Recovery.recover(RecoveryModel.Type.FULL);
-                    case "Selective-Recovery" -> selectiveStage.show();
+            if (selected != null) {
+                if ("Selective-Recovery".equals(selected)) {
+                    showSelectiveRecoveryDialog();
+                } else {
+                    recoveryPopup.show();
+                    recoveryOk.setOnAction(ok -> {
+                        if ("Full-Recovery".equals(selected)) {
+                            Recovery.recover(RecoveryModel.Type.FULL);
+                        }
+                        recoveryPopup.close();
+                        recoveryCombo.getSelectionModel().clearSelection();
+                    });
                 }
-                recoveryPopup.close();
-            });
+            }
         });
 
-        btnLogs.setOnAction(e -> {
-            Stage logStage = LogStage.getLogStage();
-            if (logStage != null) logStage.show();
-        });
-
-        btnStatus.setOnAction(e -> {
-            Stage statusStage = Status.getStatusStage();
-            if (statusStage != null) statusStage.show();
-        });
-
-        btnHelp.setOnAction(e -> HelpStage.showHelp());
-
-
+        // config btn handler 
         btnConfig.setOnAction(e -> {
             try {
                 File configFile = new File("config.yaml");
@@ -149,12 +135,65 @@ public class Header {
             }
         });
 
-        
+        // report button
+        Button btnReport = new Button("Report");
+        btnReport.setOnAction(e -> NavigationManager.navigateToReport());
 
-        HBox header = new HBox(10, btnStatus, backupCombo, recoveryCombo, btnLogs, btnHelp, btnConfig);
+
+        HBox header = new HBox(10, 
+                btnWelcome, btnStatus, btnReport, backupCombo, recoveryCombo, 
+                btnLogs, btnHelp, btnConfig
+                );
+
         header.getStyleClass().add("header");
+        header.setPadding(new javafx.geometry.Insets(15));
 
         return header;
     }
-}
+    
+    private static void showSelectiveRecoveryDialog() {
+        TableView<ManifestEntry> filesTable = StatusView.createSelectiveRecoveryTable();
+        
+        Stage selectiveStage = new Stage();
+        selectiveStage.initModality(Modality.APPLICATION_MODAL);
+        selectiveStage.initOwner(NavigationManager.getPrimaryStage());
+        selectiveStage.setTitle("Selective Recovery");
+        
+        Button selectiveRecoverOk = new Button("Recover Selected");
+        Button selectiveRecoverCancel = new Button("Cancel");
+        
+        selectiveRecoverCancel.setOnAction(e -> selectiveStage.close());
+        
+        VBox selectiveLayout = new VBox(10, 
+            new Label("Select Files to Recover"),
+            filesTable, 
+            new HBox(20, selectiveRecoverOk, selectiveRecoverCancel)
+        );
+        selectiveLayout.setPadding(new javafx.geometry.Insets(20));
+        
+        selectiveRecoverOk.setOnAction(e -> {
+            var selectedFiles = filesTable.getSelectionModel().getSelectedItems();
+            if (!selectedFiles.isEmpty()) {
+                Map<String, String> targetMap = new HashMap<>();
+                for (ManifestEntry entry : selectedFiles) {
+                    String[] fullPath = entry.original().toString().split("\\/");
 
+                    String filename = fullPath[fullPath.length - 1];
+                    targetMap.put(filename, entry.at());
+                    System.out.println(entry.original().toString() + " " + entry.at());
+                }
+                SelectiveRecoveryService.setTarget(targetMap);
+                try {
+                    Recovery.recover(RecoveryModel.Type.SELECTIVE);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+                selectiveStage.close();
+            }
+        });
+        
+        Scene selectiveScene = new Scene(selectiveLayout, 900, 600);
+        selectiveStage.setScene(selectiveScene);
+        selectiveStage.show();
+    }
+}

@@ -13,9 +13,7 @@ import utils.Logger;
 import exception.userservice.*;
 
 public class App {
-
-    public static void main(String[] args) {
-
+    public static void runCli(String[] args) {
         Welcome.display();
 
         if (args.length == 0) {
@@ -27,37 +25,17 @@ public class App {
 
         try {
             switch (command) {
-
-                case "init":
-                    init();
-                    break;
-
-                case "user":
-                    handleUser(args);
-                    break;
-
-                case "backup":
-                    handleBackup(args);
-                    break;
-
-                case "recover":
-                    handleRecovery(args);
-                    break;
-
-                case "status":
-                    ManifestDisplay.display();
-                    break;
-
-                case "help":
-                case "--help":
-                    Help.display();
-                    break;
-
-                default:
+                case "init" -> init();
+                case "user" -> handleUser(args);
+                case "backup" -> handleBackup(args);
+                case "recover" -> handleRecovery(args);
+                case "status" -> ManifestDisplay.display();
+                case "help", "--help" -> Help.display();
+                default -> {
                     System.out.println("Unknown command: " + command);
                     Help.display();
+                }
             }
-
         } catch(UserNotFoundException e) {
             System.out.println(e.getMessage());
             Logger.log("ERROR","user-service", e.getMessage());
@@ -81,6 +59,7 @@ public class App {
             }
 
         }
+
     }
 
 
