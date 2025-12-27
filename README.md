@@ -221,7 +221,7 @@ mvn clean install
 
 Run:
 ```
-mvn exec:java -Dexec.mainClass="App"
+java -jar backup-system-1.0-SNAPSHOT.jar
 ```
 
 ## 5. Usage
