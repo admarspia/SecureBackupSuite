@@ -44,24 +44,8 @@ This project is implemented in **Java**, following OOP principles and clean pack
 - Notifications  
 - Backup logs & reports
 
-## 3. System Architecture
 
-```
-+------------------------------------------------+
-|                   App.java                     |
-+-------------------------+----------------------+
-|      Config Layer       |        Utils         |
-| (DB, scheduler, crypto) | (encryption, files)  |
-+-------------------------+----------------------+
-|      Controllers (API layer)                   |
-+------------------------------------------------+
-| Services (Business Logic: backup, restore...)  |
-+------------------------------------------------+
-| Models (Data Structures / Entities)            |
-+------------------------------------------------+
-```
-
-## 4. Project Structure
+## 3. Project Structure
 
 ```
  |-backup-system
@@ -222,7 +206,7 @@ This project is implemented in **Java**, following OOP principles and clean pack
 
 ```
 
-## 5. Installation
+## 4. Installation
 
 ### Prerequisites
 - Java 17+
@@ -240,7 +224,7 @@ Run:
 mvn exec:java -Dexec.mainClass="App"
 ```
 
-## 6. Usage
+## 5. Usage
 
 1. Configure backup  
 2. Perform manual backup  
@@ -248,7 +232,7 @@ mvn exec:java -Dexec.mainClass="App"
 4. Restore files  
 5. View monitoring status  
 
-## 7. References
+## 6. References
 
 - NSBS Backup Architecture  
 - Cloud Backup Mapping Study  
@@ -256,13 +240,13 @@ mvn exec:java -Dexec.mainClass="App"
 - Deduplication Studies  
 - Security Best Practices  
 
-## 8. Future Improvements
+## 7. Future Improvements
 
 - Cloud integrations  
 - Predictive analytics    
 - Plugin-based storage adapters  
 
-## 9. License
+## 8. License
 
 Open-source for academic and learning purposes.
 
