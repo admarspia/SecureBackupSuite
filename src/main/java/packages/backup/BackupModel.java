@@ -1,7 +1,7 @@
 package backup;
 
 public class BackupModel {
-    public enum Type {FULL, INCREMENTAL, PREDICTIVE };
+    public enum Type {FULL, INCREMENTAL };
     private Type type;
 
     public void setType(Type type) { this.type = type; }

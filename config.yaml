@@ -68,7 +68,7 @@ schedule:
   # ----------------------------------------------------------
   # Defines behavior if a scheduled run was missed
   # Possible values:
-  #   RUN_IMMEDIATELY | SKIP | WAIT_NEXT
+  #   RUN_IMMEDIATELY | SKIP 
   recoveryPolicy: RUN_IMMEDIATELY
 
 
@@ -103,7 +103,7 @@ files:
 # ------------------------------------------------------------
 storage:
 
-  # Storage backend type
+  # Storage backend typeSMB | PAR
   # Supported values:
   #   LOCAL | SFTP | SMB | PARTITION | NFS | CLOUD
   type: LOCAL

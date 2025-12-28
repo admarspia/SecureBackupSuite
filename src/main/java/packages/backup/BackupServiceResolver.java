@@ -10,8 +10,6 @@ public class BackupServiceResolver {
                     return new FullBackupService();
                 case INCREMENTAL:
                     return new IncrementalBackupService();
-                case PREDICTIVE:
-                    return new PredictiveBackupService();
                 default:
                     throw new UnsupportedOperationException(
                             "Unsupported Operation: " + type
