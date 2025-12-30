@@ -23,7 +23,7 @@ public final class EncryptionHandler implements Encryptable {
 
     public EncryptionHandler(byte[] keyBytes) {
         Objects.requireNonNull(keyBytes);
-        this.key = new SecretKeySpec(keyBytes, "AES");
+        this.key = new SecretKeySpec(keyBytes, "AES"); // geting specific size of key which is strict for AES
     }
 
     public static EncryptionHandler fromBase64Key(String base64Key) {
@@ -62,14 +62,17 @@ public final class EncryptionHandler implements Encryptable {
             cipher.init(Cipher.ENCRYPT_MODE, key, spec);
 
             fout.write(iv);
+            
+            //Any bytes written to cos  Are encrypted by cipher Then written to fout
 
-            try (java.security.DigestOutputStream ignored = null) {
-                try (javax.crypto.CipherOutputStream cos = new javax.crypto.CipherOutputStream(fout, cipher)) {
+            try (javax.crypto.CipherOutputStream cos = new javax.crypto.CipherOutputStream(fout, cipher)) { //chipherd ost
                     in.transferTo(cos);
                 }
-            }
-        } catch (Exception ex) {
+
+            } catch (Exception ex) {
+
             try { Files.deleteIfExists(temp); } catch (IOException ignored) {}
+
             throw new IOException("Encryption failed", ex);
         }
 

@@ -116,20 +116,17 @@ public class App {
 
         ensureLogin();
 
-        Backupable service = null;
 
         switch (args[1]) {
 
             case "full":
                 Backup.backup(
                         BackupModel.Type.FULL);
-                service.backup();
                 break;
 
             case "incremental":
-                service = BackupServiceResolver.getService(
-                        BackupModel.Type.INCREMENTAL);
-                service.backup();
+                Backup.backup(
+                    BackupModel.Type.INCREMENTAL);
                 break;
 
             case "stop":

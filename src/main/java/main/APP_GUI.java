@@ -12,7 +12,7 @@ public class APP_GUI extends Application {
     }
 
     public static void launchFx(String[] args) {
-        Application.launch(TestFx.class, args);
+        Application.launch(APP_GUI.class, args);
     }
 }
 
